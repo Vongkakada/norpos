@@ -59,7 +59,7 @@ function SalesReport({ allOrders, exchangeRate, onSoftDeleteOrder }) {
             count,
             orders: displayOrders,
         };
-    }, [allOrders, reportType, filterDate, filterMonth, showDeleted]); // Dependencies are now defined
+    }, [allOrders, reportType, filterDate, filterMonth, showDeleted, exchangeRate]); // Added exchangeRate to dependencies
 
     const getReportTitle = () => { // This function should now be defined
         if (reportType === 'daily') return `របាយការណ៍ថ្ងៃទី ${new Date(filterDate + 'T00:00:00').toLocaleDateString('km-KH', { day: '2-digit', month: 'long', year: 'numeric' })}`;

@@ -3,8 +3,7 @@ import React from 'react';
 import { KHR_SYMBOL, formatKHR } from '../utils/formatters';
 
 function OrderItemEntry({ item, onUpdateQuantity }) {
-    // compute KHR total using priceKHR if available, otherwise fall back to priceUSD
-    const itemTotalKHR = (item.priceKHR || item.priceUSD || 0) * item.quantity;
+    // Removed unused variable itemTotalKHR
 
     return (
         <div className="order-item-entry">
