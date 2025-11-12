@@ -1,5 +1,5 @@
 // src/components/SalesReport.jsx
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { USD_SYMBOL, KHR_SYMBOL, formatUSD, formatKHR } from '../utils/formatters';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
@@ -201,7 +201,7 @@ function SalesReport({ allOrders, exchangeRate, onSoftDeleteOrder }) {
             <div className="report-actions">
                 <button onClick={handlePrintReport} disabled={salesData.orders.length === 0 && !showDeleted}><span role="img" aria-label="print">🖨️</span> បោះពុម្ព</button> {/* handlePrintReport is defined */}
                 <button onClick={handleDownloadCSV} disabled={salesData.orders.length === 0 && !showDeleted}><span role="img" aria-label="download">💾</span> CSV</button>
-                <button onClick={handleExportToExcel} disabled={!salesData || salesData.orders.length === 0 && !showDeleted}><span role="img" aria-label="excel">📄</span> Excel</button>
+                <button onClick={handleExportToExcel} disabled={!salesData || (salesData.orders.length === 0 && !showDeleted)}><span role="img" aria-label="excel">📄</span> Excel</button>
             </div>
 
             <div className="report-section" id="salesReportPrintSection">
