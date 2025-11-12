@@ -1,0 +1,241 @@
+// src/App.jsx
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import './App.css';
+import Header from './components/Header';
+import MenuPanel from './components/MenuPanel';
+import OrderPanel from './components/OrderPanel';
+import ReceiptModal from './components/ReceiptModal';
+import SalesReport from './components/SalesReport';
+import { generateOrderId } from './utils/helpers';
+
+// Import Firebase instances and functions
+import { db, serverTimestamp } from './firebase'; // Import db និង serverTimestamp
+import { collection, addDoc, getDocs, query, orderBy } from "firebase/firestore";
+
+const DEFAULT_EXCHANGE_RATE = 4000;
+const SHOP_NAME = "ន កាហ្វេ"; // កែឈ្មោះហាងរបស់អ្នកឲ្យត្រឹមត្រូវ
+
+function App() {
+    const [currentOrder, setCurrentOrder] = useState([]);
+    const [orderIdCounter, setOrderIdCounter] = useState(() => {
+        const savedCounter = localStorage.getItem('orderIdCounter');
+        return savedCounter ? parseInt(savedCounter, 10) : 1;
+    });
+    const [showReceiptModal, setShowReceiptModal] = useState(false);
+    const [allOrders, setAllOrders] = useState([]);
+    const [isLoadingOrders, setIsLoadingOrders] = useState(true);
+    const [view, setView] = useState('pos');
+    const [exchangeRate, setExchangeRate] = useState(() => {
+        const savedRate = localStorage.getItem('exchangeRate');
+        return savedRate ? parseFloat(savedRate) : DEFAULT_EXCHANGE_RATE;
+    });
+
+    const currentDisplayOrderId = useMemo(() => generateOrderId(orderIdCounter), [orderIdCounter]);
+
+    useEffect(() => {
+        const fetchOrdersFromFirestore = async () => {
+            setIsLoadingOrders(true);
+            try {
+                const ordersRef = collection(db, "orders");
+                const q = query(ordersRef, orderBy("date", "desc"));
+                const querySnapshot = await getDocs(q);
+                const fetchedOrders = querySnapshot.docs.map(doc => {
+                    const data = doc.data();
+                    return {
+                        firestoreId: doc.id,
+                        ...data,
+                        date: data.date?.toDate ? data.date.toDate().toISOString() : data.date,
+                    };
+                });
+                setAllOrders(fetchedOrders);
+            } catch (error) {
+                console.error("Error fetching orders from Firestore: ", error);
+                alert("Error fetching orders. Please check console for details.");
+            } finally {
+                setIsLoadingOrders(false);
+            }
+        };
+        fetchOrdersFromFirestore();
+    }, []);
+
+    useEffect(() => {
+        localStorage.setItem('orderIdCounter', orderIdCounter.toString());
+    }, [orderIdCounter]);
+
+    useEffect(() => {
+        localStorage.setItem('exchangeRate', exchangeRate.toString());
+    }, [exchangeRate]);
+
+    const handleExchangeRateChange = useCallback((newRate) => {
+        if (!isNaN(newRate) && newRate > 0) {
+            setExchangeRate(newRate);
+        }
+    }, []);
+
+    const addItemToOrder = useCallback((itemData) => {
+        setCurrentOrder(prevOrder => {
+            const existingItem = prevOrder.find(
+                orderItem => orderItem.khmerName === itemData.khmerName && orderItem.priceUSD === itemData.priceUSD
+            );
+            if (existingItem) {
+                return prevOrder.map(orderItem =>
+                    orderItem.khmerName === itemData.khmerName && orderItem.priceUSD === itemData.priceUSD
+                        ? { ...orderItem, quantity: orderItem.quantity + 1 }
+                        : orderItem
+                );
+            } else {
+                return [...prevOrder, { ...itemData, quantity: 1 }];
+            }
+        });
+    }, []);
+
+    const updateItemQuantity = useCallback((itemName, delta) => {
+        setCurrentOrder(prevOrder => {
+            const itemInOrder = prevOrder.find(orderItem => orderItem.khmerName === itemName);
+            if (!itemInOrder) return prevOrder;
+            const newQuantity = itemInOrder.quantity + delta;
+            if (newQuantity <= 0) {
+                return prevOrder.filter(orderItem => orderItem.khmerName !== itemName);
+            } else {
+                return prevOrder.map(orderItem =>
+                    orderItem.khmerName === itemName
+                        ? { ...orderItem, quantity: newQuantity }
+                        : orderItem
+                );
+            }
+        });
+    }, []);
+
+    const clearOrder = useCallback(() => {
+        setCurrentOrder([]);
+    }, []);
+
+    const processPayment = useCallback(() => {
+        if (currentOrder.length === 0) {
+            alert('សូមបន្ថែមទំនិញទៅក្នុងបញ្ជីជាមុនសិន!');
+            return;
+        }
+        const modalElement = document.getElementById('receiptModal');
+        if (modalElement) modalElement.classList.add('printing-receipt');
+        setShowReceiptModal(true);
+    }, [currentOrder]);
+
+    const closeReceiptModalAndFinalizeOrder = useCallback(async () => {
+        if (currentOrder.length === 0) { // Double check, though processPayment should prevent this
+            setShowReceiptModal(false);
+            return;
+        }
+        const subtotalUSD = currentOrder.reduce((sum, item) => sum + item.priceUSD * item.quantity, 0);
+        const totalUSD = subtotalUSD;
+
+        const completedOrderDataToSave = {
+            orderIdString: currentDisplayOrderId,
+            items: currentOrder.map(item => ({ // រក្សាទុកតែ field ដែលចាំបាច់សម្រាប់ items
+                khmerName: item.khmerName,
+                englishName: item.englishName || '',
+                priceUSD: item.priceUSD,
+                quantity: item.quantity,
+                category: item.category // អាចរក្សាទុក category ដែរ បើត្រូវការសម្រាប់ការវិភាគ
+            })),
+            subtotalUSD,
+            totalUSD,
+            date: serverTimestamp(), // ប្រើ serverTimestamp របស់ Firebase
+            exchangeRateAtPurchase: exchangeRate, // រក្សាទុកអត្រាប្តូរប្រាក់ពេល Order
+        };
+
+        try {
+            const docRef = await addDoc(collection(db, "orders"), completedOrderDataToSave);
+            console.log("Order written to Firestore with ID: ", docRef.id);
+
+            // សម្រាប់ UI update ភ្លាមៗ, បង្កើត object ថ្មីជាមួយ date ជា ISO string
+            const newOrderForState = {
+                ...completedOrderDataToSave,
+                firestoreId: docRef.id,
+                date: new Date().toISOString(), // ប្រើ new Date() សម្រាប់ UI update ភ្លាមៗ
+            };
+            // បន្ថែម order ថ្មីទៅខាងដើមនៃ array (សម្រាប់តម្រៀបថ្មីមុន)
+            setAllOrders(prevOrders => [newOrderForState, ...prevOrders]);
+
+        } catch (e) {
+            console.error("Error adding document to Firestore: ", e);
+            alert("មានបញ្ហាក្នុងការរក្សាទុក Order។ សូមព្យាយាមម្តងទៀត។ Error: " + e.message);
+            // មិន clear order ឬ increment counter បើ save បរាជ័យ
+            setShowReceiptModal(false); // បិទ modal វិញ បើ save បរាជ័យ
+            return;
+        }
+
+        setShowReceiptModal(false);
+        const modalElement = document.getElementById('receiptModal');
+        if (modalElement) modalElement.classList.remove('printing-receipt');
+
+        setCurrentOrder([]);
+        setOrderIdCounter(prevCounter => prevCounter + 1);
+    }, [currentOrder, currentDisplayOrderId, exchangeRate]);
+
+    return (
+        <>
+            <Header
+                shopName={SHOP_NAME}
+                currentExchangeRate={exchangeRate}
+                onExchangeRateChange={handleExchangeRateChange}
+            />
+
+            <div className="app-navigation">
+                <button
+                    onClick={() => setView('pos')}
+                    className={view === 'pos' ? 'active-view' : ''}
+                >
+                    <span role="img" aria-label="pos system">🛒</span> ប្រព័ន្ធលក់ (POS)
+                </button>
+                <button
+                    onClick={() => setView('report')}
+                    className={view === 'report' ? 'active-view' : ''}
+                >
+                    <span role="img" aria-label="sales report">📊</span> របាយការណ៍លក់
+                </button>
+            </div>
+
+            {isLoadingOrders && ( // Show a general loading indicator if still loading initial data
+                <div className="loading-indicator full-page-loader">
+                    <p>កំពុងទាញយកទិន្នន័យ...</p>
+                    {/* You can add a spinner here */}
+                </div>
+            )}
+
+            {!isLoadingOrders && view === 'pos' && (
+                <div className="pos-container pos-view-container">
+                    <MenuPanel onAddItemToOrder={addItemToOrder} />
+                    <OrderPanel
+                        currentOrder={currentOrder}
+                        orderId={currentDisplayOrderId}
+                        onUpdateQuantity={updateItemQuantity}
+                        onClearOrder={clearOrder}
+                        onProcessPayment={processPayment}
+                        exchangeRate={exchangeRate}
+                    />
+                </div>
+            )}
+
+            {!isLoadingOrders && view === 'report' && (
+                <div className="pos-container report-view-container">
+                     <SalesReport
+                        allOrders={allOrders}
+                        exchangeRate={exchangeRate} // បញ្ជូន exchangeRate បច្ចុប្បន្នសម្រាប់គណនាក្នុង Report
+                    />
+                </div>
+            )}
+
+            <ReceiptModal
+                id="receiptModal"
+                show={showReceiptModal}
+                onClose={closeReceiptModalAndFinalizeOrder}
+                order={currentOrder} // currentOrder សម្រាប់បង្ហាញក្នុង Receipt
+                orderId={currentDisplayOrderId}
+                exchangeRate={exchangeRate} // exchangeRate បច្ចុប្បន្នសម្រាប់បង្ហាញក្នុង Receipt
+                shopName={SHOP_NAME}
+            />
+        </>
+    );
+}
+
+export default App;
