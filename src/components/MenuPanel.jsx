@@ -49,7 +49,7 @@ function MenuPanel({ onAddItemToOrder }) {
             {activeCategory && filteredMenuItems.length > 0 ? (
                 <div className="menu-items-grid">
                     {filteredMenuItems.map(item => (
-                        <MenuItem key={item.khmerName + item.priceUSD} item={item} onAddItemToOrder={onAddItemToOrder} />
+                        <MenuItem key={item.khmerName} item={item} onAddItemToOrder={onAddItemToOrder} />
                     ))}
                 </div>
             ) : activeCategory && filteredMenuItems.length === 0 ? (

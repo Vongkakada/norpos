@@ -1,6 +1,6 @@
 // src/components/ReceiptModal.jsx
 import React from 'react';
-import { USD_SYMBOL, KHR_SYMBOL, formatUSD, formatKHR } from '../utils/formatters';
+import { KHR_SYMBOL, formatKHR } from '../utils/formatters';
 import qrcode from '../assets/qrcode.jpg'; // Assuming you have a CSS file for styling
 
 const SHOP_STATIC_DETAILS = {
@@ -12,13 +12,12 @@ function ReceiptModal({ show, onClose, order, orderId, exchangeRate, /* taxRate,
     if (!show) return null;
 
     const now = new Date();
-    const subtotalUSD = order.reduce((sum, item) => sum + item.priceUSD * item.quantity, 0);
-    // const taxUSD = subtotalUSD * taxRate; // << លុបការគណនាពន្ធ
-    const totalUSD = subtotalUSD; // << Total USD ឥឡូវគឺ subtotal USD
-    const totalKHR = totalUSD * exchangeRate;
+    const subtotalKHR = order.reduce((sum, item) => sum + (item.priceKHR || item.priceUSD || 0) * item.quantity, 0);
+    // const taxKHR = subtotalKHR * taxRate; // tax removed
+    const totalKHR = subtotalKHR; // already in KHR
 
     const safeShopNameForQR = shopName.replace(/\s+/g, '_');
-    const qrData = `ORDER_ID:${orderId};TOTAL_USD:${formatUSD(totalUSD)};TOTAL_KHR:${formatKHR(totalKHR)};SHOP_NAME:${safeShopNameForQR}`;
+    const qrData = `ORDER_ID:${orderId};TOTAL_KHR:${formatKHR(totalKHR)};SHOP_NAME:${safeShopNameForQR}`;
     const qrCodeUrl = qrcode + `?data=${encodeURIComponent(qrData)}`; // Assuming you have a QR code image
 
     const handlePrint = () => {
@@ -43,15 +42,15 @@ function ReceiptModal({ show, onClose, order, orderId, exchangeRate, /* taxRate,
                             <tr>
                                 <th>មុខទំនិញ</th>
                                 <th>ចំនួន</th>
-                                <th>សរុប ({USD_SYMBOL})</th>
+                                <th>សរុប ({KHR_SYMBOL})</th>
                             </tr>
                         </thead>
                         <tbody>
                             {order.map(item => (
-                                <tr key={item.khmerName + item.priceUSD}>
+                                <tr key={item.khmerName + (item.priceKHR || item.priceUSD || 0)}>
                                     <td>{item.khmerName} ({item.englishName || ''})</td>
                                     <td>{item.quantity}</td>
-                                    <td>{formatUSD(item.priceUSD * item.quantity)}</td>
+                                    <td>{KHR_SYMBOL}{formatKHR((item.priceKHR || item.priceUSD) * item.quantity)}</td>
                                 </tr>
                             ))}
                         </tbody>
@@ -61,18 +60,13 @@ function ReceiptModal({ show, onClose, order, orderId, exchangeRate, /* taxRate,
                         <div className="receipt-summary-line">
                             <span>សរុបរង:</span>
                             <span>
-                                {USD_SYMBOL}{formatUSD(subtotalUSD)}
-                                <span className="khr-val"> {KHR_SYMBOL}{formatKHR(subtotalUSD * exchangeRate)}</span>
+                                {KHR_SYMBOL}{formatKHR(subtotalKHR || 0)}
                             </span>
                         </div>
                         <div className="receipt-divider"></div>
                         <div className="receipt-summary-line total">
-                            <span>សរុប ({USD_SYMBOL}):</span>
-                            <span>{USD_SYMBOL}{formatUSD(totalUSD)}</span>
-                        </div>
-                        <div className="receipt-summary-line total">
                             <span>សរុប ({KHR_SYMBOL}):</span>
-                            <span>{KHR_SYMBOL}{formatKHR(totalKHR)}</span>
+                            <span>{KHR_SYMBOL}{formatKHR(totalKHR || 0)}</span>
                         </div>
                     </div>
                     <div className="receipt-qr-code">

@@ -1,7 +1,7 @@
 // src/components/OrderPanel.jsx
 import React from 'react';
 import OrderItemEntry from './OrderItemEntry';
-import { USD_SYMBOL, KHR_SYMBOL, formatUSD, formatKHR } from '../utils/formatters';
+import { KHR_SYMBOL, formatKHR } from '../utils/formatters';
 
 function OrderPanel({
     currentOrder,
@@ -11,11 +11,9 @@ function OrderPanel({
     onProcessPayment,
     exchangeRate,
 }) {
-    const subtotalUSD = currentOrder.reduce((sum, item) => sum + item.priceUSD * item.quantity, 0);
+    const subtotalKHR = currentOrder.reduce((sum, item) => sum + (item.priceKHR || item.priceUSD || 0) * item.quantity, 0);
 
-    const totalUSD = subtotalUSD;
-
-    const totalKHR = totalUSD * exchangeRate;
+    const totalKHR = subtotalKHR; // already in KHR, exchangeRate retained for compatibility
 
     return (
         <div className="order-panel">
@@ -26,7 +24,7 @@ function OrderPanel({
                 ) : (
                     currentOrder.map(item => (
                         <OrderItemEntry
-                            key={item.khmerName + item.priceUSD}
+                            key={item.khmerName + (item.priceKHR || item.priceUSD || 0)}
                             item={item}
                             onUpdateQuantity={onUpdateQuantity}
                         />
@@ -37,15 +35,13 @@ function OrderPanel({
                 <div className="summary-line">
                     <span>សរុបរង (Subtotal):</span>
                     <span className="currency-value">
-                        {USD_SYMBOL}{formatUSD(subtotalUSD)}
-                        <span className="khr">{KHR_SYMBOL}{formatKHR(subtotalUSD * exchangeRate)}</span>
+                        {KHR_SYMBOL}{formatKHR(subtotalKHR || 0)}
                     </span>
                 </div>
-                <div className="summary-line total">
+                <div className="summary-line total order-total">
                     <span>សរុប (Total):</span>
                     <span className="currency-value">
-                        {USD_SYMBOL}{formatUSD(totalUSD)}
-                        <span className="khr">{KHR_SYMBOL}{formatKHR(totalKHR)}</span>
+                        {KHR_SYMBOL}{formatKHR(totalKHR || 0)}
                     </span>
                 </div>
             </div>

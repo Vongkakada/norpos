@@ -252,13 +252,13 @@ body {
 }
 .menu-item .item-icon {
     font-size: 1.8em;
-    margin-bottom: 8px;
+    margin-bottom: 15px;
     color: var(--accent-color);
     height: 30px;
 }
 .menu-item .item-name-km {
     font-weight: 500;
-    font-size: 0.9em;
+    font-size: 1.1em;
     margin-bottom: 4px;
     color: var(--text-color);
     min-height: 30px; 
@@ -271,14 +271,12 @@ body {
     color: var(--text-light-color);
     min-height: 15px;
 }
-.menu-item .item-price-usd {
+
+
+.menu-item .item-price-khr {
     font-size: 0.9em;
     color: var(--primary-color);
     font-weight: 700;
-}
-.menu-item .item-price-khr {
-    font-size: 0.8em;
-    color: var(--text-light-color);
 }
 
 .current-order-items {
@@ -338,6 +336,17 @@ body {
     margin-bottom: 8px;
     font-size: 0.95em;
 }
+
+/* Ensure the left label in summary-line remains visible and doesn't get pushed out by long values */
+.summary-line > span:first-child {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+.summary-line .currency-value {
+    flex: 0 0 auto;
+    margin-left: 12px;
+    text-align: right;
+}
 .summary-line .currency-value .khr {
     font-size: 0.85em;
     color: var(--text-light-color);
@@ -351,6 +360,34 @@ body {
     margin-top: 10px;
 }
 .summary-line.total .currency-value .khr { font-size: 1em; color: var(--accent-color); }
+
+/* Emphasized total for OrderPanel */
+.order-total {
+    background: linear-gradient(90deg, rgba(255,248,240,1) 0%, rgba(255,238,220,1) 100%);
+    padding: 10px;
+    border-radius: 8px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+}
+
+/* Summary card for SalesReport */
+.report-summary-card {
+    display: flex;
+    gap: 16px;
+    margin: 12px 0 18px 0;
+    padding: 10px;
+    border-radius: 8px;
+    background: #FFF8EE;
+    align-items: center;
+}
+.report-summary-card .summary-item { display:flex; flex-direction:column; }
+.report-summary-card .summary-label { font-size: 0.85em; color: var(--text-light-color); }
+.report-summary-card .summary-value { font-weight: 700; font-size: 1.1em; color: var(--primary-color); }
+
+/* Accessibility: focus styles for quantity controls */
+.order-item-controls button:focus {
+    outline: 2px dashed var(--primary-color);
+    outline-offset: 2px;
+}
 
 .action-buttons {
     display: grid;

@@ -75,11 +75,11 @@ function App() {
     const addItemToOrder = useCallback((itemData) => {
         setCurrentOrder(prevOrder => {
             const existingItem = prevOrder.find(
-                orderItem => orderItem.khmerName === itemData.khmerName && orderItem.priceUSD === itemData.priceUSD
+                orderItem => orderItem.khmerName === itemData.khmerName && (orderItem.priceKHR || orderItem.priceUSD) === (itemData.priceKHR || itemData.priceUSD)
             );
             if (existingItem) {
                 return prevOrder.map(orderItem =>
-                    orderItem.khmerName === itemData.khmerName && orderItem.priceUSD === itemData.priceUSD
+                    orderItem.khmerName === itemData.khmerName && (orderItem.priceKHR || orderItem.priceUSD) === (itemData.priceKHR || itemData.priceUSD)
                         ? { ...orderItem, quantity: orderItem.quantity + 1 }
                         : orderItem
                 );
@@ -125,20 +125,20 @@ function App() {
             setShowReceiptModal(false);
             return;
         }
-        const subtotalUSD = currentOrder.reduce((sum, item) => sum + item.priceUSD * item.quantity, 0);
-        const totalUSD = subtotalUSD;
+        const subtotalKHR = currentOrder.reduce((sum, item) => sum + (item.priceKHR || item.priceUSD || 0) * item.quantity, 0);
+        const totalKHR = subtotalKHR;
 
         const completedOrderDataToSave = {
             orderIdString: currentDisplayOrderId,
             items: currentOrder.map(item => ({ // រក្សាទុកតែ field ដែលចាំបាច់សម្រាប់ items
                 khmerName: item.khmerName,
                 englishName: item.englishName || '',
-                priceUSD: item.priceUSD,
+                priceKHR: item.priceKHR || item.priceUSD || 0,
                 quantity: item.quantity,
                 category: item.category // អាចរក្សាទុក category ដែរ បើត្រូវការសម្រាប់ការវិភាគ
             })),
-            subtotalUSD,
-            totalUSD,
+            subtotalKHR,
+            totalKHR,
             date: serverTimestamp(), // ប្រើ serverTimestamp របស់ Firebase
             exchangeRateAtPurchase: exchangeRate, // រក្សាទុកអត្រាប្តូរប្រាក់ពេល Order
         };

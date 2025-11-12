@@ -1,6 +1,6 @@
 // src/components/SalesReport.jsx
 import React, { useState, useMemo, useRef } from 'react';
-import { USD_SYMBOL, KHR_SYMBOL, formatUSD, formatKHR } from '../utils/formatters';
+import { KHR_SYMBOL, formatKHR } from '../utils/formatters';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 
@@ -22,7 +22,7 @@ function SalesReport({ allOrders, exchangeRate, onSoftDeleteOrder }) {
 
     const salesData = useMemo(() => {
         if (!allOrders || allOrders.length === 0) {
-            return { grandTotalUSD: 0, count: 0, orders: [] };
+            return { grandTotalKHR: 0, count: 0, orders: [] };
         }
 
         let processedOrders = allOrders;
@@ -39,7 +39,7 @@ function SalesReport({ allOrders, exchangeRate, onSoftDeleteOrder }) {
             filteredOrders = processedOrders;
         }
 
-        const grandTotalUSD = filteredOrders.reduce((sum, order) => sum + (order.totalUSD || 0), 0);
+    const grandTotalKHR = filteredOrders.reduce((sum, order) => sum + ((order.totalKHR || ((order.totalUSD || 0) * (order.exchangeRateAtPurchase || exchangeRate))) || 0), 0);
         const count = filteredOrders.length;
 
         let displayOrders = [];
@@ -55,7 +55,7 @@ function SalesReport({ allOrders, exchangeRate, onSoftDeleteOrder }) {
         }
 
         return {
-            grandTotalUSD,
+            grandTotalKHR,
             count,
             orders: displayOrders,
         };
@@ -85,15 +85,15 @@ function SalesReport({ allOrders, exchangeRate, onSoftDeleteOrder }) {
     // ... (handleDownloadCSV and handleExportToExcel should be fine as they use salesData and defined states) ...
     const handleDownloadCSV = () => {
         if (salesData.orders.length === 0) { alert("មិនមានទិន្នន័យសម្រាប់ទាញយក។"); return; }
-        let csvContent = "data:text/csv;charset=utf-8,";
-        csvContent += "Order ID (Display),Firestore ID,Date,Time,Items Count,Total USD,Total KHR (at Purchase),Exchange Rate (at Purchase),Is Deleted,Delete Reason\r\n";
+    let csvContent = "data:text/csv;charset=utf-8,";
+    csvContent += "Order ID (Display),Firestore ID,Date,Time,Items Count,Total KHR (at Purchase),Exchange Rate (at Purchase),Is Deleted,Delete Reason\r\n";
         salesData.orders.forEach(order => {
             const orderDate = new Date(order.date);
             const dateStr = orderDate.toLocaleDateString('en-CA');
             const timeStr = orderDate.toLocaleTimeString('en-GB');
             const itemsCount = Array.isArray(order.items) ? order.items.reduce((sum, item) => sum + (item.quantity || 0), 0) : 0;
-            const totalKHRatPurchase = (order.totalUSD || 0) * (order.exchangeRateAtPurchase || exchangeRate);
-            csvContent += `${order.orderIdString || 'N/A'},${order.firestoreId || 'N/A'},${dateStr},${timeStr},${itemsCount},${formatUSD(order.totalUSD || 0)},${formatKHR(totalKHRatPurchase)},${order.exchangeRateAtPurchase || 'N/A'},${order.isDeleted ? 'Yes' : 'No'},"${(order.deleteReason || '').replace(/"/g, '""')}"\r\n`;
+            const totalKHRatPurchase = (order.totalKHR || ((order.totalUSD || 0) * (order.exchangeRateAtPurchase || exchangeRate))) || 0;
+            csvContent += `${order.orderIdString || 'N/A'},${order.firestoreId || 'N/A'},${dateStr},${timeStr},${itemsCount},${formatKHR(totalKHRatPurchase)},${order.exchangeRateAtPurchase || 'N/A'},${order.isDeleted ? 'Yes' : 'No'},"${(order.deleteReason || '').replace(/"/g, '""')}"\r\n`;
         });
         const encodedUri = encodeURI(csvContent);
         const link = document.createElement("a");
@@ -108,7 +108,7 @@ function SalesReport({ allOrders, exchangeRate, onSoftDeleteOrder }) {
             const orderDate = new Date(order.date);
             const itemsCount = Array.isArray(order.items) ? order.items.reduce((sum, item) => sum + (item.quantity || 0), 0) : 0;
             const itemsString = Array.isArray(order.items) ? order.items.map(i => `${i.khmerName || ''} (x${i.quantity || 0})`).join(', ') : '';
-            const totalKHRatPurchase = (order.totalUSD || 0) * (order.exchangeRateAtPurchase || exchangeRate);
+            const totalKHRatPurchase = (order.totalKHR || ((order.totalUSD || 0) * (order.exchangeRateAtPurchase || exchangeRate))) || 0;
             return {
                 'លេខវិក្កយបត្រ (Display)': order.orderIdString || 'N/A',
                 'Firestore ID': order.firestoreId || 'N/A',
@@ -116,7 +116,6 @@ function SalesReport({ allOrders, exchangeRate, onSoftDeleteOrder }) {
                 'ម៉ោង': orderDate.toLocaleTimeString('km-KH'),
                 'មុខទំនិញសរុប': itemsCount,
                 'បញ្ជីផលិតផល': itemsString,
-                'សរុប (USD)': order.totalUSD || 0,
                 'សរុប (KHR @ទិញ)': totalKHRatPurchase,
                 'អត្រាប្តូរប្រាក់ (@ទិញ)': order.exchangeRateAtPurchase || 'N/A',
                 'បានលុប': order.isDeleted ? 'បាទ' : 'ទេ',
@@ -206,10 +205,20 @@ function SalesReport({ allOrders, exchangeRate, onSoftDeleteOrder }) {
 
             <div className="report-section" id="salesReportPrintSection">
                 <h3>{getReportTitle()}</h3> {/* getReportTitle is defined */}
+                <div className="report-summary-card">
+                    <div className="summary-item">
+                        <div className="summary-label">Orders</div>
+                        <div className="summary-value">{salesData.count}</div>
+                    </div>
+                    <div className="summary-item">
+                        <div className="summary-label">Grand Total (KHR)</div>
+                        <div className="summary-value">{KHR_SYMBOL}{formatKHR(salesData.grandTotalKHR || 0)}</div>
+                    </div>
+                </div>
                 {/* ... (rest of the JSX, table structure should be fine now) ... */}
                 <p>ចំនួនបញ្ជាទិញ{showDeleted ? "" : " (មិនរួមបញ្ចូលបានលុប)"}: {salesData.count}</p>
                 <p style={{fontWeight: 'bold', marginTop: '10px', color: 'var(--primary-color)'}}>
-                    ប្រាក់ចំណូលសរុប (USD){showDeleted ? "" : " (មិនរួមបញ្ចូលបានលុប)"}: {USD_SYMBOL}{formatUSD(salesData.grandTotalUSD)}
+                    ប្រាក់ចំណូលសរុប (KHR){showDeleted ? "" : " (មិនរួមបញ្ចូលបានលុប)"}: {KHR_SYMBOL}{formatKHR(salesData.grandTotalKHR || 0)}
                 </p>
 
                 {salesData.orders.length > 0 ? (
@@ -220,7 +229,7 @@ function SalesReport({ allOrders, exchangeRate, onSoftDeleteOrder }) {
                                 <th>កាលបរិច្ឆេទ</th>
                                 <th>ម៉ោង</th>
                                 <th className="number-cell">ចំនួនមុខ</th>
-                                <th className="number-cell">សរុប (USD)</th>
+                                <th className="number-cell">សរុប (KHR)</th>
                                 <th className="number-cell">សរុប (KHR @ទិញ)</th>
                                 <th style={{width: '120px'}}>សកម្មភាព</th>
                             </tr>
@@ -229,7 +238,7 @@ function SalesReport({ allOrders, exchangeRate, onSoftDeleteOrder }) {
                             {salesData.orders.map(order => {
                                 const orderDate = new Date(order.date || new Date());
                                 const itemsCount = Array.isArray(order.items) ? order.items.reduce((sum, item) => sum + (item.quantity || 0), 0) : 0;
-                                const khrAtPurchase = (order.totalUSD || 0) * (order.exchangeRateAtPurchase || exchangeRate);
+                                const khrAtPurchase = (order.totalKHR || ((order.totalUSD || 0) * (order.exchangeRateAtPurchase || exchangeRate))) || 0;
                                 const rowClass = order.isDeleted ? 'deleted-row' : '';
 
                                 return (
@@ -242,8 +251,8 @@ function SalesReport({ allOrders, exchangeRate, onSoftDeleteOrder }) {
                                         <td>{orderDate.toLocaleDateString('km-KH')}</td>
                                         <td>{orderDate.toLocaleTimeString('km-KH')}</td>
                                         <td className="number-cell">{itemsCount}</td>
-                                        <td className="number-cell">{formatUSD(order.totalUSD || 0)}</td>
-                                        <td className="number-cell">{formatKHR(khrAtPurchase)}</td>
+                                        <td className="number-cell">{KHR_SYMBOL}{formatKHR(khrAtPurchase)}</td>
+                                        <td className="number-cell">{KHR_SYMBOL}{formatKHR(khrAtPurchase)}</td>
                                         <td className="actions-cell">
                                             {!order.isDeleted && (
                                                 <button
@@ -274,11 +283,11 @@ function SalesReport({ allOrders, exchangeRate, onSoftDeleteOrder }) {
                                         return acc + currentItemsCount;
                                     }, 0)}
                                 </td>
-                                <td className="number-cell" style={{fontWeight: 'bold'}}>{formatUSD(salesData.grandTotalUSD)}</td>
-                                <td className="number-cell" style={{fontWeight: 'bold'}}>
-                                     {KHR_SYMBOL}
-                                     {formatKHR(salesData.orders.reduce((sum, order) => {const khrValue = (order.totalUSD || 0) * (order.exchangeRateAtPurchase || exchangeRate); return sum + khrValue;},0))}
-                                </td>
+                          <td className="number-cell" style={{fontWeight: 'bold'}}>{KHR_SYMBOL}{formatKHR(salesData.grandTotalKHR || 0)}</td>
+                          <td className="number-cell" style={{fontWeight: 'bold'}}>
+                              {KHR_SYMBOL}
+                              {formatKHR(salesData.orders.reduce((sum, order) => {const khrValue = (order.totalKHR || ((order.totalUSD || 0) * (order.exchangeRateAtPurchase || exchangeRate))) || 0; return sum + khrValue;},0))}
+                          </td>
                                 <td></td>
                             </tr>
                         </tfoot>
