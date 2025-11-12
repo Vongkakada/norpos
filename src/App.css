@@ -226,10 +226,23 @@ body {
 }
 
 .menu-items-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-    gap: 12px;
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
 }
+
+@media (max-width: 900px) {
+    .menu-items-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 600px) {
+    .menu-items-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
 
 .menu-item {
     background-color: var(--surface-color);
