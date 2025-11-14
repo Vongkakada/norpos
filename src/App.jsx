@@ -10,7 +10,7 @@ import { generateOrderId } from './utils/helpers';
 
 // Import Firebase instances and functions
 import { db, serverTimestamp } from './firebase'; // Import db និង serverTimestamp
-import { collection, addDoc, getDocs, query, orderBy } from "firebase/firestore";
+import { collection, addDoc, getDocs, query, orderBy, doc, updateDoc } from "firebase/firestore";
 
 const DEFAULT_EXCHANGE_RATE = 4000;
 const SHOP_NAME = "ន កាហ្វេ"; // កែឈ្មោះហាងរបស់អ្នកឲ្យត្រឹមត្រូវ
@@ -172,6 +172,29 @@ function App() {
         setOrderIdCounter(prevCounter => prevCounter + 1);
     }, [currentOrder, currentDisplayOrderId, exchangeRate]);
 
+    const handleSoftDeleteOrder = useCallback(async (firestoreId, deleteReason) => {
+        try {
+            const orderRef = doc(db, "orders", firestoreId);
+            await updateDoc(orderRef, {
+                isDeleted: true,
+                deleteReason: deleteReason,
+                deletedAt: serverTimestamp(),
+            });
+            // Update state to reflect the deleted order
+            setAllOrders(prevOrders =>
+                prevOrders.map(order =>
+                    order.firestoreId === firestoreId
+                        ? { ...order, isDeleted: true, deleteReason: deleteReason }
+                        : order
+                )
+            );
+            alert("Order ត្រូវបានលុបដោយជោគជ័យ។");
+        } catch (error) {
+            console.error("Error deleting order: ", error);
+            alert("មានបញ្ហាក្នុងការលុប Order: " + error.message);
+        }
+    }, []);
+
     return (
         <>
             <Header
@@ -220,7 +243,8 @@ function App() {
                 <div className="pos-container report-view-container">
                      <SalesReport
                         allOrders={allOrders}
-                        exchangeRate={exchangeRate} // បញ្ជូន exchangeRate បច្ចុប្បន្នសម្រាប់គណនាក្នុង Report
+                        exchangeRate={exchangeRate}
+                        onSoftDeleteOrder={handleSoftDeleteOrder}
                     />
                 </div>
             )}
