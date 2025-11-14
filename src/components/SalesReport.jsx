@@ -22,7 +22,7 @@ function SalesReport({ allOrders, exchangeRate, onSoftDeleteOrder }) {
 
     const salesData = useMemo(() => {
         if (!allOrders || allOrders.length === 0) {
-            return { grandTotalKHR: 0, count: 0, orders: [] };
+            return { grandTotalKHR: 0, count: 0, orders: [], deletedTotalKHR: 0, notDeletedTotalKHR: 0 };
         }
 
         let processedOrders = allOrders;
@@ -54,10 +54,16 @@ function SalesReport({ allOrders, exchangeRate, onSoftDeleteOrder }) {
             displayOrders = displayOrders.filter(order => !order.isDeleted);
         }
 
+        // Calculate deleted and non-deleted totals
+        const notDeletedTotalKHR = displayOrders.filter(o => !o.isDeleted).reduce((sum, order) => sum + ((order.totalKHR || ((order.totalUSD || 0) * (order.exchangeRateAtPurchase || exchangeRate))) || 0), 0);
+        const deletedTotalKHR = displayOrders.filter(o => o.isDeleted).reduce((sum, order) => sum + ((order.totalKHR || ((order.totalUSD || 0) * (order.exchangeRateAtPurchase || exchangeRate))) || 0), 0);
+
         return {
             grandTotalKHR,
             count,
             orders: displayOrders,
+            notDeletedTotalKHR,
+            deletedTotalKHR,
         };
     }, [allOrders, reportType, filterDate, filterMonth, showDeleted, exchangeRate]); // Added exchangeRate to dependencies
 
@@ -283,19 +289,42 @@ function SalesReport({ allOrders, exchangeRate, onSoftDeleteOrder }) {
                         </tbody>
                         <tfoot>
                             <tr>
-                                <td colSpan="4" style={{textAlign: 'right', fontWeight: 'bold'}}>សរុប ({showDeleted ? "រួមទាំងបានលុប" : "មិនរួមបញ្ចូលបានលុប"}):</td>
+                                <td colSpan="4" style={{textAlign: 'right', fontWeight: 'bold'}}>មិនបានលុប:</td>
+                                <td className="number-cell" style={{fontWeight: 'bold'}}>
+                                    {salesData.orders.filter(o => !o.isDeleted).reduce((acc, currOrder) => {
+                                        const currentItemsCount = Array.isArray(currOrder.items) ? currOrder.items.reduce((s, i) => s + (i.quantity || 0), 0) : 0;
+                                        return acc + currentItemsCount;
+                                    }, 0)}
+                                </td>
+                          <td className="number-cell" style={{fontWeight: 'bold'}}>{KHR_SYMBOL}{formatKHR(salesData.notDeletedTotalKHR || 0)}</td>
+                          <td></td>
+                          <td></td>
+                            </tr>
+                            {showDeleted && salesData.deletedTotalKHR > 0 && (
+                                <tr style={{backgroundColor: '#ffe6e6'}}>
+                                    <td colSpan="4" style={{textAlign: 'right', fontWeight: 'bold'}}>បានលុប:</td>
+                                    <td className="number-cell" style={{fontWeight: 'bold'}}>
+                                        {salesData.orders.filter(o => o.isDeleted).reduce((acc, currOrder) => {
+                                            const currentItemsCount = Array.isArray(currOrder.items) ? currOrder.items.reduce((s, i) => s + (i.quantity || 0), 0) : 0;
+                                            return acc + currentItemsCount;
+                                        }, 0)}
+                                    </td>
+                          <td className="number-cell" style={{fontWeight: 'bold'}}>{KHR_SYMBOL}{formatKHR(salesData.deletedTotalKHR || 0)}</td>
+                          <td></td>
+                          <td></td>
+                                </tr>
+                            )}
+                            <tr style={{backgroundColor: '#f0f0f0'}}>
+                                <td colSpan="4" style={{textAlign: 'right', fontWeight: 'bold'}}>សរុប:</td>
                                 <td className="number-cell" style={{fontWeight: 'bold'}}>
                                     {salesData.orders.reduce((acc, currOrder) => {
                                         const currentItemsCount = Array.isArray(currOrder.items) ? currOrder.items.reduce((s, i) => s + (i.quantity || 0), 0) : 0;
                                         return acc + currentItemsCount;
                                     }, 0)}
                                 </td>
-                          <td className="number-cell" style={{fontWeight: 'bold'}}>{KHR_SYMBOL}{formatKHR(salesData.grandTotalKHR || 0)}</td>
-                          <td className="number-cell" style={{fontWeight: 'bold'}}>
-                              {KHR_SYMBOL}
-                              {formatKHR(salesData.orders.reduce((sum, order) => {const khrValue = (order.totalKHR || ((order.totalUSD || 0) * (order.exchangeRateAtPurchase || exchangeRate))) || 0; return sum + khrValue;},0))}
-                          </td>
-                                <td></td>
+                          <td className="number-cell" style={{fontWeight: 'bold'}}>{KHR_SYMBOL}{formatKHR((salesData.notDeletedTotalKHR || 0) + (salesData.deletedTotalKHR || 0))}</td>
+                          <td></td>
+                          <td></td>
                             </tr>
                         </tfoot>
                     </table>
