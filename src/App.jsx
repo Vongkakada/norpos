@@ -69,12 +69,46 @@ function App() {
         localStorage.setItem('orderIdCounter', orderIdCounter.toString());
     }, [orderIdCounter]);
 
+    // Function to add stock item to Firebase
+    const addStockItemToFirebase = async (item) => {
+        try {
+            const docRef = await addDoc(collection(db, 'stock'), {
+                khmerName: item.khmerName,
+                englishName: item.englishName,
+                category: item.category,
+                priceKHR: item.priceKHR,
+                quantity: item.quantity,
+                lastUpdated: item.lastUpdated,
+                updatedAt: new Date(),
+            });
+            console.log("Stock item saved with ID: ", docRef.id);
+        } catch (error) {
+            console.error("Error adding stock item to Firebase: ", error);
+        }
+    };
+
     useEffect(() => {
         localStorage.setItem('exchangeRate', exchangeRate.toString());
     }, [exchangeRate]);
 
     useEffect(() => {
         localStorage.setItem('stockData', JSON.stringify(stockData));
+        
+        // Save stock data to Firebase
+        const saveStockToFirebase = async () => {
+            try {
+                const stockItems = Object.values(stockData);
+                
+                // Save each stock item as a separate document
+                for (const item of stockItems) {
+                    await addStockItemToFirebase(item);
+                }
+            } catch (error) {
+                console.error('Error saving stock to Firebase:', error);
+            }
+        };
+        
+        saveStockToFirebase();
     }, [stockData]);
 
     const handleExchangeRateChange = useCallback((newRate) => {

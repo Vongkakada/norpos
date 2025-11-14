@@ -1,15 +1,8 @@
 // src/components/StockManagement.jsx
-import React, { useState, useRef } from 'react';
-import { exportStockToCSV, exportStockToJSON, importStockFromCSV, importStockFromJSON } from '../data/stockData';
-import { saveAs } from 'file-saver';
-import { db, serverTimestamp } from '../firebase';
-import { collection, addDoc } from 'firebase/firestore';
+import React, { useState } from 'react';
+import * as XLSX from 'xlsx';
 
 function StockManagement({ stockData, onUpdateStock }) {
-    const [filterCategory, setFilterCategory] = useState('ALL');
-    const fileInputRef = useRef(null);
-    const [importFormat, setImportFormat] = useState('csv');
-    const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
     const [showAddForm, setShowAddForm] = useState(false);
     const [newStockItem, setNewStockItem] = useState({
         khmerName: '',
@@ -17,67 +10,68 @@ function StockManagement({ stockData, onUpdateStock }) {
         category: 'COLD DRINKS',
         priceKHR: 0,
         quantity: 0,
-    });
-    const [savingStatus, setSavingStatus] = useState('');
+        });
 
-    const categories = ['ALL', ...new Set(Object.values(stockData).map(item => item.category))];
+    const categories = ['COLD DRINKS', 'HOT DRINKS', 'FOOD', 'SNACKS'];
     
-    const filteredStock = filterCategory === 'ALL'
-        ? Object.values(stockData)
-        : Object.values(stockData).filter(item => item.category === filterCategory);
+    // Filter out items with zero quantity and sort by lastUpdated (newest first)
+    const filteredStock = Object.values(stockData)
+        .filter(item => item.quantity > 0)
+        .sort((a, b) => {
+            const dateA = new Date(a.lastUpdated || 0).getTime();
+            const dateB = new Date(b.lastUpdated || 0).getTime();
+            return dateB - dateA; // Newest first
+        });
 
-    const handleExportCSV = () => {
+    const formatDateTime = (dateString) => {
+        if (!dateString) return '-';
+        try {
+            const date = new Date(dateString);
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            return `${day}/${month}/${year} ${hours}:${minutes}`;
+        } catch (error) {
+            return '-';
+        }
+    };
+
+    const handleExportExcel = () => {
         if (Object.keys(stockData).length === 0) {
             alert('មិនមានទិន្នន័យដែលត្រូវលុប។');
             return;
         }
-        const csvContent = exportStockToCSV(stockData);
-        const encodedUri = encodeURI(csvContent);
-        const link = document.createElement('a');
-        link.setAttribute('href', encodedUri);
-        link.setAttribute('download', `stock_${new Date().toISOString().split('T')[0]}.csv`);
-        link.click();
-    };
 
-    const handleExportJSON = () => {
-        if (Object.keys(stockData).length === 0) {
-            alert('មិនមានទិន្នន័យដែលត្រូវលុប។');
-            return;
-        }
-        const jsonContent = exportStockToJSON(stockData);
-        const blob = new Blob([jsonContent], { type: 'application/json' });
-        saveAs(blob, `stock_${new Date().toISOString().split('T')[0]}.json`);
-    };
+        // Prepare data for Excel
+        const excelData = Object.values(stockData).map(item => ({
+            'ឈ្មោះទំនិញ (ខ្មែរ)': item.khmerName,
+            'ឈ្មោះទំនិញ (អង់គ្លេស)': item.englishName || '-',
+            'ប្រភេទ': item.category,
+            'តម្លៃ (KHR)': item.priceKHR,
+            'ចំនួនស្តុក': item.quantity,
+            'ថ្ងៃខែឆ្នាំ': item.lastUpdated || new Date().toISOString(),
+        }));
 
-    const handleImportClick = () => {
-        fileInputRef.current?.click();
-    };
+        // Create worksheet and workbook
+        const worksheet = XLSX.utils.json_to_sheet(excelData);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'Stock');
 
-    const handleFileImport = (e) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
+        // Set column widths
+        const colWidths = [
+            { wch: 20 },
+            { wch: 20 },
+            { wch: 15 },
+            { wch: 12 },
+            { wch: 12 },
+            { wch: 20 }
+        ];
+        worksheet['!cols'] = colWidths;
 
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            try {
-                const content = event.target?.result;
-                let importedStock;
-
-                if (importFormat === 'csv') {
-                    importedStock = importStockFromCSV(content);
-                } else {
-                    importedStock = importStockFromJSON(content);
-                }
-
-                onUpdateStock(importedStock);
-                alert('ឯកសារ​បាន​នាំចូល​ដោយ​ជោគ​ជ័យ!');
-            } catch (error) {
-                alert('កំហុស​ក្នុង​ការ​នាំចូល: ' + error.message);
-            }
-        };
-
-        reader.readAsText(file);
-        fileInputRef.current.value = ''; // Reset input
+        // Write to file
+        XLSX.writeFile(workbook, `stock_${new Date().toISOString().split('T')[0]}.xlsx`);
     };
 
     const handleUpdateQuantity = (key, newQuantity) => {
@@ -95,41 +89,6 @@ function StockManagement({ stockData, onUpdateStock }) {
                 }
             };
             onUpdateStock(updatedStock);
-        }
-    };
-
-    const handleSaveToFirebase = async () => {
-        if (Object.keys(stockData).length === 0) {
-            alert('មិនមានទិន្នន័យស្តុក។');
-            return;
-        }
-
-        setSavingStatus('កំពុងរក្សាទុក...');
-        try {
-            const stockItems = Object.values(stockData).map(item => ({
-                khmerName: item.khmerName,
-                englishName: item.englishName,
-                category: item.category,
-                priceKHR: item.priceKHR,
-                quantity: item.quantity,
-            }));
-
-            const docRef = await addDoc(collection(db, 'stock'), {
-                date: selectedDate,
-                items: stockItems,
-                totalItems: stockItems.length,
-                totalQuantity: stockItems.reduce((sum, item) => sum + item.quantity, 0),
-                createdAt: serverTimestamp(),
-                lastUpdated: serverTimestamp(),
-            });
-            
-            setSavingStatus('រក្សាទុកដោយជោគជ័យ!');
-            setTimeout(() => setSavingStatus(''), 2000);
-            alert(`ទិន្នន័យរក្សាទុកក្នុង Firestore ដោយជោគជ័យ!\nDocument ID: ${docRef.id}`);
-        } catch (error) {
-            setSavingStatus('កំហុស: ' + error.message);
-            console.error('Error saving to Firebase:', error);
-            alert('មានកំហុសក្នុងការរក្សាទុក: ' + error.message);
         }
     };
 
@@ -153,6 +112,7 @@ function StockManagement({ stockData, onUpdateStock }) {
         };
         
         onUpdateStock(updatedStock);
+        
         setNewStockItem({
             khmerName: '',
             englishName: '',
@@ -163,87 +123,41 @@ function StockManagement({ stockData, onUpdateStock }) {
         setShowAddForm(false);
         alert('ទំនិញថ្មីបានបន្ថែមដោយជោគជ័យ!');
     };
+
+    const handleDeleteItem = (key) => {
+        const confirmDelete = window.confirm('តើអ្នកពិតជាចង់លុបទំនិញនេះទេ?');
+        if (!confirmDelete) return;
+
+        const updatedStock = { ...stockData };
+        delete updatedStock[key];
+        onUpdateStock(updatedStock);
+        alert('ទំនិញបានលុបចេញ!');
+    };
+    
     return (
         <div className="stock-management-panel">
             <h2>គ្រប់គ្រងស្តុក</h2>
-            
-            {/* Date Selector and Firebase Save */}
-            <div className="stock-date-controls">
-                <div className="date-input-group">
-                    <label>ជ្រើសរើសកាលបរិច្ឆេទ:</label>
-                    <input
-                        type="date"
-                        value={selectedDate}
-                        onChange={(e) => setSelectedDate(e.target.value)}
-                        className="date-input"
-                    />
-                </div>
-                <button onClick={handleSaveToFirebase} className="btn-firebase">💾 រក្សាទុកទៅ Firebase</button>
-                {savingStatus && <div className="saving-status">{savingStatus}</div>}
-            </div>
 
             {/* Import/Export Controls */}
             <div className="stock-controls">
                 <div className="stock-actions">
-                    <button onClick={handleExportCSV} className="btn-export">📥 នាំចេញ CSV</button>
-                    <button onClick={handleExportJSON} className="btn-export">📥 នាំចេញ JSON</button>
+                    <button onClick={handleExportExcel} className="btn-export">ទាញទិន្នន័យជា Excel</button>
                     <button onClick={() => setShowAddForm(!showAddForm)} className="btn-add-item">➕ បន្ថែមទំនិញថ្មី</button>
-                    <div className="import-control">
-                        <select value={importFormat} onChange={(e) => setImportFormat(e.target.value)}>
-                            <option value="csv">CSV</option>
-                            <option value="json">JSON</option>
-                        </select>
-                        <button onClick={handleImportClick} className="btn-import">📤 នាំចូល</button>
-                        <input
-                            ref={fileInputRef}
-                            type="file"
-                            accept={importFormat === 'csv' ? '.csv' : '.json'}
-                            onChange={handleFileImport}
-                            style={{ display: 'none' }}
-                        />
-                    </div>
                 </div>
 
-                {/* Category Filter */}
-                <div className="category-filter">
-                    <label>ច្រោះតាមប្រភេទ:</label>
-                    <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}>
-                        {categories.map(cat => (
-                            <option key={cat} value={cat}>{cat}</option>
-                        ))}
-                    </select>
-                </div>
-
-                {/* Add New Item Button */}
-                <button 
-                    onClick={() => setShowAddForm(!showAddForm)} 
-                    className="btn-add-item"
-                >
-                    {showAddForm ? '✕ បិទ' : '➕ បន្ថែមទំនិញថ្មី'}
-                </button>
-
+                {/* Add New Item Button - moved here */}
                 {/* Add New Item Form */}
                 {showAddForm && (
                     <div className="add-item-form">
                         <h3>បន្ថែមទំនិញថ្មី</h3>
                         <div className="form-row">
                             <div className="form-group">
-                                <label>ឈ្មោះទំនិញ (ខ្មែរ):</label>
+                                <label>ឈ្មោះទំនិញ</label>
                                 <input
                                     type="text"
                                     value={newStockItem.khmerName}
                                     onChange={(e) => setNewStockItem({...newStockItem, khmerName: e.target.value})}
-                                    placeholder="ឧ. កាហ្វេខ្មៅ"
-                                    className="form-input"
-                                />
-                            </div>
-                            <div className="form-group">
-                                <label>ឈ្មោះទំនិញ (អង់គ្លេស):</label>
-                                <input
-                                    type="text"
-                                    value={newStockItem.englishName}
-                                    onChange={(e) => setNewStockItem({...newStockItem, englishName: e.target.value})}
-                                    placeholder="e.g. Black Coffee"
+                                    placeholder="ឧ. កាហ្វេ"
                                     className="form-input"
                                 />
                             </div>
@@ -251,17 +165,15 @@ function StockManagement({ stockData, onUpdateStock }) {
 
                         <div className="form-row">
                             <div className="form-group">
-                                <label>ប្រភេទ:</label>
-                                <select
-                                    value={newStockItem.category}
-                                    onChange={(e) => setNewStockItem({...newStockItem, category: e.target.value})}
+                                <label>ចំនួនស្តុក:</label>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    value={newStockItem.quantity}
+                                    onChange={(e) => setNewStockItem({...newStockItem, quantity: parseInt(e.target.value) || 0})}
+                                    placeholder="0"
                                     className="form-input"
-                                >
-                                    <option value="">-- ជ្រើសរើសប្រភេទ --</option>
-                                    {categories.map(cat => (
-                                        <option key={cat} value={cat}>{cat}</option>
-                                    ))}
-                                </select>
+                                />
                             </div>
                             <div className="form-group">
                                 <label>តម្លៃ (KHR):</label>
@@ -270,17 +182,6 @@ function StockManagement({ stockData, onUpdateStock }) {
                                     min="0"
                                     value={newStockItem.priceKHR}
                                     onChange={(e) => setNewStockItem({...newStockItem, priceKHR: parseFloat(e.target.value) || 0})}
-                                    placeholder="0"
-                                    className="form-input"
-                                />
-                            </div>
-                            <div className="form-group">
-                                <label>ចំនួនស្តុក:</label>
-                                <input
-                                    type="number"
-                                    min="0"
-                                    value={newStockItem.quantity}
-                                    onChange={(e) => setNewStockItem({...newStockItem, quantity: parseInt(e.target.value) || 0})}
                                     placeholder="0"
                                     className="form-input"
                                 />
@@ -297,7 +198,7 @@ function StockManagement({ stockData, onUpdateStock }) {
                             <button
                                 onClick={() => {
                                     setShowAddForm(false);
-                                    setNewStockItem({ khmerName: '', englishName: '', category: '', priceKHR: 0, quantity: 0 });
+                                    setNewStockItem({ khmerName: '', englishName: '', category: 'COLD DRINKS', priceKHR: 0, quantity: 0 });
                                 }}
                                 className="btn-cancel"
                             >
@@ -314,10 +215,9 @@ function StockManagement({ stockData, onUpdateStock }) {
                     <thead>
                         <tr>
                             <th>ឈ្មោះទំនិញ (ខ្មែរ)</th>
-                            <th>ឈ្មោះទំនិញ (អង់គ្លេស)</th>
-                            <th>ប្រភេទ</th>
                             <th className="number-cell">តម្លៃ (KHR)</th>
                             <th className="number-cell">ចំនួនស្តុក</th>
+                            <th>ថ្ងៃខែឆ្នាំ ម៉ោង</th>
                             <th>សកម្មភាព</th>
                         </tr>
                     </thead>
@@ -326,11 +226,9 @@ function StockManagement({ stockData, onUpdateStock }) {
                             const key = `${item.khmerName}_${item.category}`;
                             return (
                                 <tr key={key}>
-                                    <td>{item.khmerName}</td>
-                                    <td>{item.englishName || '-'}</td>
-                                    <td>{item.category}</td>
-                                    <td className="number-cell">{item.priceKHR.toLocaleString()}</td>
-                                    <td className="number-cell">
+                                    <td data-label="ឈ្មោះទំនិញ">{item.khmerName}</td>
+                                    <td className="number-cell" data-label="តម្លៃ (KHR)">{item.priceKHR.toLocaleString()}</td>
+                                    <td className="number-cell" data-label="ចំនួនស្តុក">
                                         <input
                                             type="number"
                                             min="0"
@@ -339,7 +237,8 @@ function StockManagement({ stockData, onUpdateStock }) {
                                             className="stock-input"
                                         />
                                     </td>
-                                    <td>
+                                    <td data-label="ថ្ងៃខែឆ្នាំ">{formatDateTime(item.lastUpdated)}</td>
+                                    <td data-label="សកម្មភាព">
                                         <button
                                             onClick={() => handleUpdateQuantity(key, Math.max(0, item.quantity - 1))}
                                             className="btn-adjust"
@@ -353,6 +252,13 @@ function StockManagement({ stockData, onUpdateStock }) {
                                             title="កើនឡើង"
                                         >
                                             +
+                                        </button>
+                                        <button
+                                            onClick={() => handleDeleteItem(key)}
+                                            className="btn-delete-item"
+                                            title="លុបទំនិញ"
+                                        >
+                                            🗑️ លុប
                                         </button>
                                     </td>
                                 </tr>
