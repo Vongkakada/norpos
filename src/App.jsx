@@ -9,6 +9,7 @@ import SalesReport from './components/SalesReport';
 import StockManagement from './components/StockManagement';
 import { menuData } from './data/menuData';
 import { initializeStock } from './data/stockData';
+import { generateOrderId } from './utils/helpers';
 
 // Import Firebase instances and functions
 import { db, serverTimestamp } from './firebase'; // Import db និង serverTimestamp
