@@ -6,7 +6,9 @@ import MenuPanel from './components/MenuPanel';
 import OrderPanel from './components/OrderPanel';
 import ReceiptModal from './components/ReceiptModal';
 import SalesReport from './components/SalesReport';
-import { generateOrderId } from './utils/helpers';
+import StockManagement from './components/StockManagement';
+import { menuData } from './data/menuData';
+import { initializeStock } from './data/stockData';
 
 // Import Firebase instances and functions
 import { db, serverTimestamp } from './firebase'; // Import db និង serverTimestamp
@@ -28,6 +30,10 @@ function App() {
     const [exchangeRate, setExchangeRate] = useState(() => {
         const savedRate = localStorage.getItem('exchangeRate');
         return savedRate ? parseFloat(savedRate) : DEFAULT_EXCHANGE_RATE;
+    });
+    const [stockData, setStockData] = useState(() => {
+        const savedStock = localStorage.getItem('stockData');
+        return savedStock ? JSON.parse(savedStock) : initializeStock(menuData);
     });
 
     const currentDisplayOrderId = useMemo(() => generateOrderId(orderIdCounter), [orderIdCounter]);
@@ -65,6 +71,10 @@ function App() {
     useEffect(() => {
         localStorage.setItem('exchangeRate', exchangeRate.toString());
     }, [exchangeRate]);
+
+    useEffect(() => {
+        localStorage.setItem('stockData', JSON.stringify(stockData));
+    }, [stockData]);
 
     const handleExchangeRateChange = useCallback((newRate) => {
         if (!isNaN(newRate) && newRate > 0) {
@@ -216,6 +226,12 @@ function App() {
                 >
                     <span role="img" aria-label="sales report">📊</span> របាយការណ៍លក់
                 </button>
+                <button
+                    onClick={() => setView('stock')}
+                    className={view === 'stock' ? 'active-view' : ''}
+                >
+                    <span role="img" aria-label="stock management">📦</span> គ្រប់គ្រងស្តុក
+                </button>
             </div>
 
             {isLoadingOrders && ( // Show a general loading indicator if still loading initial data
@@ -245,6 +261,15 @@ function App() {
                         allOrders={allOrders}
                         exchangeRate={exchangeRate}
                         onSoftDeleteOrder={handleSoftDeleteOrder}
+                    />
+                </div>
+            )}
+
+            {!isLoadingOrders && view === 'stock' && (
+                <div className="pos-container report-view-container">
+                    <StockManagement
+                        stockData={stockData}
+                        onUpdateStock={setStockData}
                     />
                 </div>
             )}

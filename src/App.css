@@ -624,6 +624,140 @@ body {
     text-align: right;
 }
 
+/* Stock Management Panel Styles */
+.stock-management-panel {
+    padding: 20px;
+    width: 100%;
+    box-sizing: border-box;
+    background-color: #F5F5F5;
+}
+
+.stock-management-panel h2 {
+    color: var(--primary-color);
+    margin-top: 0;
+    border-bottom: 2px solid var(--primary-color);
+    padding-bottom: 10px;
+    font-weight: 700;
+    font-size: 1.4em;
+}
+
+.stock-controls {
+    margin-bottom: 20px;
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.stock-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.btn-export, .btn-import {
+    padding: 10px 15px;
+    background-color: var(--secondary-color);
+    color: var(--text-color);
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-family: var(--font-family);
+    font-size: 0.95em;
+    transition: background-color 0.2s ease;
+}
+
+.btn-export:hover, .btn-import:hover {
+    background-color: #C0A070;
+}
+
+.import-control {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.import-control select {
+    padding: 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    font-family: var(--font-family);
+    background-color: var(--surface-color);
+}
+
+.category-filter {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.category-filter label {
+    font-weight: 500;
+    font-family: var(--font-family);
+}
+
+.category-filter select {
+    padding: 8px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    font-family: var(--font-family);
+    background-color: var(--surface-color);
+    cursor: pointer;
+}
+
+.stock-table {
+    width: 100%;
+    border-collapse: collapse;
+    background-color: var(--surface-color);
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.stock-table th, .stock-table td {
+    border: 1px solid var(--border-color);
+    padding: 12px;
+    text-align: left;
+    font-size: 0.9em;
+}
+
+.stock-table th {
+    background-color: var(--secondary-color);
+    color: var(--text-color);
+    font-weight: 600;
+}
+
+.stock-table td.number-cell {
+    text-align: right;
+}
+
+.stock-input {
+    width: 80px;
+    padding: 6px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    text-align: center;
+    font-family: var(--font-family);
+}
+
+.btn-adjust {
+    background-color: var(--secondary-color);
+    color: var(--text-color);
+    border: none;
+    width: 30px;
+    height: 30px;
+    border-radius: 4px;
+    cursor: pointer;
+    margin: 0 4px;
+    font-weight: bold;
+    transition: background-color 0.2s ease;
+}
+
+.btn-adjust:hover {
+    background-color: var(--accent-color);
+    color: var(--surface-color);
+}
+
 /* Print-specific styles */
 @media print {
     body {
