@@ -29,6 +29,55 @@ function SalesReport({ allOrders, exchangeRate, onSoftDeleteOrder }) {
     // END OF MISSING STATE VARIABLE DECLARATIONS
     // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+    // ALL HOOKS MUST BE CALLED HERE (before any conditional returns)
+    const salesData = useMemo(() => {
+        if (!allOrders || allOrders.length === 0) {
+            return { grandTotalKHR: 0, count: 0, orders: [], deletedTotalKHR: 0, notDeletedTotalKHR: 0 };
+        }
+
+        let processedOrders = allOrders;
+        if (!showDeleted) {
+            processedOrders = allOrders.filter(order => !order.isDeleted);
+        }
+
+        let filteredOrders = [];
+        if (reportType === 'daily') {
+            filteredOrders = processedOrders.filter(order => order.date && order.date.startsWith(filterDate));
+        } else if (reportType === 'monthly') {
+            filteredOrders = processedOrders.filter(order => order.date && order.date.startsWith(filterMonth));
+        } else if (reportType === 'all') {
+            filteredOrders = processedOrders;
+        }
+
+        const grandTotalKHR = filteredOrders.reduce((sum, order) => sum + ((order.totalKHR || ((order.totalUSD || 0) * (order.exchangeRateAtPurchase || exchangeRate))) || 0), 0);
+        const count = filteredOrders.length;
+
+        let displayOrders = [];
+        if (reportType === 'daily') {
+            displayOrders = allOrders.filter(order => order.date && order.date.startsWith(filterDate));
+        } else if (reportType === 'monthly') {
+            displayOrders = allOrders.filter(order => order.date && order.date.startsWith(filterMonth));
+        } else if (reportType === 'all') {
+            displayOrders = allOrders;
+        }
+        if (!showDeleted) {
+            displayOrders = displayOrders.filter(order => !order.isDeleted);
+        }
+
+        // Calculate deleted and non-deleted totals
+        const notDeletedTotalKHR = displayOrders.filter(o => !o.isDeleted).reduce((sum, order) => sum + ((order.totalKHR || ((order.totalUSD || 0) * (order.exchangeRateAtPurchase || exchangeRate))) || 0), 0);
+        const deletedTotalKHR = displayOrders.filter(o => o.isDeleted).reduce((sum, order) => sum + ((order.totalKHR || ((order.totalUSD || 0) * (order.exchangeRateAtPurchase || exchangeRate))) || 0), 0);
+
+        return {
+            grandTotalKHR,
+            count,
+            orders: displayOrders,
+            notDeletedTotalKHR,
+            deletedTotalKHR,
+        };
+    }, [allOrders, reportType, filterDate, filterMonth, showDeleted, exchangeRate]);
+    // END OF HOOKS
+
     const handleLogin = () => {
         setAuthError("");
         if (!authUsername.trim()) {
@@ -96,55 +145,8 @@ function SalesReport({ allOrders, exchangeRate, onSoftDeleteOrder }) {
         );
     }
 
-
-    const salesData = useMemo(() => {
-        if (!allOrders || allOrders.length === 0) {
-            return { grandTotalKHR: 0, count: 0, orders: [], deletedTotalKHR: 0, notDeletedTotalKHR: 0 };
-        }
-
-        let processedOrders = allOrders;
-        if (!showDeleted) {
-            processedOrders = allOrders.filter(order => !order.isDeleted);
-        }
-
-        let filteredOrders = [];
-        if (reportType === 'daily') { // Now reportType is defined
-            filteredOrders = processedOrders.filter(order => order.date && order.date.startsWith(filterDate)); // filterDate is defined
-        } else if (reportType === 'monthly') { // reportType is defined
-            filteredOrders = processedOrders.filter(order => order.date && order.date.startsWith(filterMonth)); // filterMonth is defined
-        } else if (reportType === 'all') { // reportType is defined
-            filteredOrders = processedOrders;
-        }
-
-    const grandTotalKHR = filteredOrders.reduce((sum, order) => sum + ((order.totalKHR || ((order.totalUSD || 0) * (order.exchangeRateAtPurchase || exchangeRate))) || 0), 0);
-        const count = filteredOrders.length;
-
-        let displayOrders = [];
-         if (reportType === 'daily') { // reportType is defined
-            displayOrders = allOrders.filter(order => order.date && order.date.startsWith(filterDate)); // filterDate is defined
-        } else if (reportType === 'monthly') { // reportType is defined
-            displayOrders = allOrders.filter(order => order.date && order.date.startsWith(filterMonth)); // filterMonth is defined
-        } else if (reportType === 'all') { // reportType is defined
-            displayOrders = allOrders;
-        }
-        if (!showDeleted) {
-            displayOrders = displayOrders.filter(order => !order.isDeleted);
-        }
-
-        // Calculate deleted and non-deleted totals
-        const notDeletedTotalKHR = displayOrders.filter(o => !o.isDeleted).reduce((sum, order) => sum + ((order.totalKHR || ((order.totalUSD || 0) * (order.exchangeRateAtPurchase || exchangeRate))) || 0), 0);
-        const deletedTotalKHR = displayOrders.filter(o => o.isDeleted).reduce((sum, order) => sum + ((order.totalKHR || ((order.totalUSD || 0) * (order.exchangeRateAtPurchase || exchangeRate))) || 0), 0);
-
-        return {
-            grandTotalKHR,
-            count,
-            orders: displayOrders,
-            notDeletedTotalKHR,
-            deletedTotalKHR,
-        };
-    }, [allOrders, reportType, filterDate, filterMonth, showDeleted, exchangeRate]); // Added exchangeRate to dependencies
-
-    const getReportTitle = () => { // This function should now be defined
+    // Render the report if authenticated
+    const getReportTitle = () => {
         if (reportType === 'daily') return `របាយការណ៍ថ្ងៃទី ${new Date(filterDate + 'T00:00:00').toLocaleDateString('km-KH', { day: '2-digit', month: 'long', year: 'numeric' })}`;
         if (reportType === 'monthly') return `របាយការណ៍ខែ ${new Date(filterMonth + '-01T00:00:00').toLocaleDateString('km-KH', { month: 'long', year: 'numeric' })}`;
         return 'របាយការណ៍លក់សរុប';
