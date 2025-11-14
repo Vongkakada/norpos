@@ -624,6 +624,122 @@ body {
     text-align: right;
 }
 
+/* SalesReport Authentication Styles */
+.auth-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+    min-height: 400px;
+}
+
+.auth-container h2 {
+    color: var(--primary-color);
+    margin-bottom: 30px;
+    font-size: 1.8em;
+}
+
+.auth-form {
+    background-color: var(--surface-color);
+    padding: 30px;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    width: 100%;
+    max-width: 350px;
+}
+
+.auth-input-group {
+    margin-bottom: 20px;
+    display: flex;
+    flex-direction: column;
+}
+
+.auth-input-group label {
+    font-weight: 500;
+    margin-bottom: 8px;
+    color: var(--text-color);
+    font-family: var(--font-family);
+}
+
+.auth-input {
+    padding: 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    font-family: var(--font-family);
+    font-size: 1em;
+    background-color: var(--surface-color);
+    color: var(--text-color);
+}
+
+.auth-input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 4px rgba(160, 82, 45, 0.3);
+}
+
+.auth-error {
+    background-color: #ffe6e6;
+    color: #d9534f;
+    padding: 10px;
+    border-radius: 6px;
+    margin-bottom: 15px;
+    text-align: center;
+    font-family: var(--font-family);
+    border: 1px solid #d9534f;
+}
+
+.btn-login {
+    width: 100%;
+    padding: 12px;
+    background-color: var(--primary-color);
+    color: var(--surface-color);
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: var(--font-family);
+    font-size: 1em;
+    font-weight: 600;
+    transition: background-color 0.2s ease;
+}
+
+.btn-login:hover {
+    background-color: #793D1B;
+}
+
+.report-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.report-header h2 {
+    margin: 0;
+    color: var(--primary-color);
+    border-bottom: 2px solid var(--primary-color);
+    padding-bottom: 10px;
+    font-weight: 700;
+    font-size: 1.4em;
+    flex: 1;
+}
+
+.btn-logout {
+    padding: 8px 15px;
+    background-color: #d9534f;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-family: var(--font-family);
+    font-size: 0.9em;
+    transition: background-color 0.2s ease;
+}
+
+.btn-logout:hover {
+    background-color: #c9302c;
+}
+
 /* Stock Management Panel Styles */
 .stock-management-panel {
     padding: 20px;

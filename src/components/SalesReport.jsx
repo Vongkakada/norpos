@@ -5,6 +5,16 @@ import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 
 function SalesReport({ allOrders, exchangeRate, onSoftDeleteOrder }) {
+    // Authentication state
+    const [isAuthenticated, setIsAuthenticated] = useState(false);
+    const [authUsername, setAuthUsername] = useState("");
+    const [authPassword, setAuthPassword] = useState("");
+    const [authError, setAuthError] = useState("");
+
+    // Default credentials (should be changed to your actual credentials)
+    const REPORT_USERNAME = "vathanak";
+    const REPORT_PASSWORD = "123";
+
     // VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV
     // DECLARE MISSING STATE VARIABLES HERE
     // VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV
@@ -18,6 +28,73 @@ function SalesReport({ allOrders, exchangeRate, onSoftDeleteOrder }) {
     // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
     // END OF MISSING STATE VARIABLE DECLARATIONS
     // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    const handleLogin = () => {
+        setAuthError("");
+        if (!authUsername.trim()) {
+            setAuthError("សូមបញ្ចូលឈ្មោះ");
+            return;
+        }
+        if (!authPassword.trim()) {
+            setAuthError("សូមបញ្ចូលលេខសម្ងាត់");
+            return;
+        }
+        if (authUsername === REPORT_USERNAME && authPassword === REPORT_PASSWORD) {
+            setIsAuthenticated(true);
+        } else {
+            setAuthError("ឈ្មោះ ឬលេខសម្ងាត់មិនត្រឹមត្រូវ");
+        }
+    };
+
+    const handleLogout = () => {
+        setIsAuthenticated(false);
+        setAuthUsername("");
+        setAuthPassword("");
+        setAuthError("");
+    };
+
+    const handleKeyPress = (e) => {
+        if (e.key === "Enter") {
+            handleLogin();
+        }
+    };
+
+    // Show login form if not authenticated
+    if (!isAuthenticated) {
+        return (
+            <div className="sales-report-panel">
+                <div className="auth-container">
+                    <h2>វាលរបាយការណ៍លក់</h2>
+                    <div className="auth-form">
+                        <div className="auth-input-group">
+                            <label>ឈ្មោះ:</label>
+                            <input
+                                type="text"
+                                value={authUsername}
+                                onChange={(e) => setAuthUsername(e.target.value)}
+                                onKeyPress={handleKeyPress}
+                                placeholder="បញ្ចូលឈ្មោះ"
+                                className="auth-input"
+                            />
+                        </div>
+                        <div className="auth-input-group">
+                            <label>លេខសម្ងាត់:</label>
+                            <input
+                                type="password"
+                                value={authPassword}
+                                onChange={(e) => setAuthPassword(e.target.value)}
+                                onKeyPress={handleKeyPress}
+                                placeholder="បញ្ចូលលេខសម្ងាត់"
+                                className="auth-input"
+                            />
+                        </div>
+                        {authError && <div className="auth-error">{authError}</div>}
+                        <button onClick={handleLogin} className="btn-login">ចូលប្រើប្រាស់</button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
 
     const salesData = useMemo(() => {
@@ -168,7 +245,10 @@ function SalesReport({ allOrders, exchangeRate, onSoftDeleteOrder }) {
 
     return (
         <div className="sales-report-panel">
-            <h2>របាយការណ៍លក់</h2>
+            <div className="report-header">
+                <h2>របាយការណ៍លក់</h2>
+                <button onClick={handleLogout} className="btn-logout">ចាកចេញ</button>
+            </div>
             <div className="report-controls">
                 <button
                     onClick={() => setReportType('daily')} // setReportType is defined
