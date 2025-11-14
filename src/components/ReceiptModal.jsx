@@ -83,6 +83,7 @@ function ReceiptModal({ show, onClose, order, orderId, exchangeRate, /* taxRate,
                 </div>
                 <div className="print-button-container">
                     <button className="btn-print" onClick={handlePrint}>បោះពុម្ពវិក្កយបត្រ</button>
+                    <button className="btn-close-receipt" onClick={onClose}>បោះបង់</button>
                 </div>
             </div>
         </div>

@@ -502,7 +502,7 @@ body {
 .receipt-qr-code { text-align: center; margin: 15px 0; }
 .receipt-qr-code img { width: 100px; height: 100px; border: 1px solid #ccc; }
 .receipt-footer { text-align: center; font-size: 0.85em; margin-top: 12px; }
-.print-button-container { text-align: center; margin-top: 20px; }
+.print-button-container { text-align: center; margin-top: 20px; display: flex; gap: 10px; justify-content: center; }
 .btn-print {
     background-color: var(--primary-color);
     color: var(--surface-color);
@@ -514,6 +514,17 @@ body {
     font-size: 1em;
 }
 .btn-print:hover { background-color: #793D1B; }
+.btn-close-receipt {
+    background-color: var(--secondary-color);
+    color: var(--text-color);
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-family: var(--font-family);
+    font-size: 1em;
+}
+.btn-close-receipt:hover { background-color: #C0A070; }
 
 /* Sales Report Panel Styles */
 .sales-report-panel {
