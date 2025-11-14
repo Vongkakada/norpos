@@ -231,6 +231,7 @@ function SalesReport({ allOrders, exchangeRate, onSoftDeleteOrder }) {
                                 <th className="number-cell">ចំនួនមុខ</th>
                                 <th className="number-cell">សរុប (KHR)</th>
                                 <th className="number-cell">សរុប (KHR @ទិញ)</th>
+                                <th>មូលហេតុលុប</th>
                                 <th style={{width: '120px'}}>សកម្មភាព</th>
                             </tr>
                         </thead>
@@ -253,6 +254,13 @@ function SalesReport({ allOrders, exchangeRate, onSoftDeleteOrder }) {
                                         <td className="number-cell">{itemsCount}</td>
                                         <td className="number-cell">{KHR_SYMBOL}{formatKHR(khrAtPurchase)}</td>
                                         <td className="number-cell">{KHR_SYMBOL}{formatKHR(khrAtPurchase)}</td>
+                                        <td>
+                                            {order.isDeleted && order.deleteReason ? (
+                                                <span className="delete-reason-cell">{order.deleteReason}</span>
+                                            ) : (
+                                                <span style={{color: '#999'}}>-</span>
+                                            )}
+                                        </td>
                                         <td className="actions-cell">
                                             {!order.isDeleted && (
                                                 <button
@@ -264,10 +272,9 @@ function SalesReport({ allOrders, exchangeRate, onSoftDeleteOrder }) {
                                                 </button>
                                             )}
                                             {order.isDeleted && (
-                                                 <div className="status-deleted">
-                                                    <p>(បានលុប)</p>
-                                                    {order.deleteReason && <p className="delete-reason-display">មូលហេតុ: {order.deleteReason}</p>}
-                                                 </div>
+                                                <div className="status-deleted">
+                                                    <p style={{margin: 0, fontSize: '0.9em'}}>(បានលុប)</p>
+                                                </div>
                                             )}
                                         </td>
                                     </tr>
@@ -276,7 +283,7 @@ function SalesReport({ allOrders, exchangeRate, onSoftDeleteOrder }) {
                         </tbody>
                         <tfoot>
                             <tr>
-                                <td colSpan="3" style={{textAlign: 'right', fontWeight: 'bold'}}>សរុប ({showDeleted ? "រួមទាំងបានលុប" : "មិនរួមបញ្ចូលបានលុប"}):</td>
+                                <td colSpan="4" style={{textAlign: 'right', fontWeight: 'bold'}}>សរុប ({showDeleted ? "រួមទាំងបានលុប" : "មិនរួមបញ្ចូលបានលុប"}):</td>
                                 <td className="number-cell" style={{fontWeight: 'bold'}}>
                                     {salesData.orders.reduce((acc, currOrder) => {
                                         const currentItemsCount = Array.isArray(currOrder.items) ? currOrder.items.reduce((s, i) => s + (i.quantity || 0), 0) : 0;

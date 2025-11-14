@@ -102,6 +102,17 @@ body {
     margin-top: 2px;
 }
 
+.delete-reason-cell {
+    font-size: 0.85em;
+    color: #d9534f;
+    font-weight: 500;
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: inline-block;
+}
+
 /* Styles for Delete Reason Modal */
 .delete-reason-modal .modal-content {
     max-width: 450px; /* Adjust width as needed */
