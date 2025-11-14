@@ -12,7 +12,7 @@ function StockManagement({ stockData, onUpdateStock }) {
         quantity: 0,
         });
 
-    const categories = ['COLD DRINKS', 'HOT DRINKS', 'FOOD', 'SNACKS'];
+ 
     
     // Filter out items with zero quantity and sort by lastUpdated (newest first)
     const filteredStock = Object.values(stockData)
