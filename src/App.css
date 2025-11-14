@@ -460,9 +460,10 @@ body {
     margin-bottom: 10px;
 }
 .receipt-logo {
-    width: 60mm;
+    width: 20mm;
     height: auto;
     max-height: 40mm;
+    color: #000;
 }
 .close-button {
     color: #aaa;
