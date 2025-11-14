@@ -2,6 +2,7 @@
 import React from 'react';
 import { KHR_SYMBOL, formatKHR } from '../utils/formatters';
 import qrcode from '../assets/qrcode.jpg'; // Assuming you have a CSS file for styling
+import logo from '../assets/logo.png';
 
 const SHOP_STATIC_DETAILS = {
     address: "ផ្ទះលេខ 137 , ផ្លូវ 223, កំពង់ចាម",
@@ -29,6 +30,9 @@ function ReceiptModal({ show, onClose, order, orderId, exchangeRate, /* taxRate,
             <div className="modal-content">
                 <span className="close-button" onClick={onClose}>×</span>
                 <div className="receipt-print-area">
+                    <div className="receipt-logo-top">
+                        <img src={logo} alt="Logo" className="receipt-logo" />
+                    </div>
                     <div className="receipt-header">
                         <h3>{shopName}</h3>
                         <p>{SHOP_STATIC_DETAILS.address}</p>
