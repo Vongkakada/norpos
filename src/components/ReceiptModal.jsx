@@ -1,204 +1,130 @@
-// src/components/ReceiptModal.jsx
-import React, { useRef, useEffect } from 'react';
-import { KHR_SYMBOL, formatKHR } from '../utils/formatters';
-import qrcode from '../assets/qrcode.jpg'; // static QR image
-import logo from '../assets/logo.png';
+import React, { useRef } from "react";
+import { KHR_SYMBOL, formatKHR } from "../utils/formatters";
+import logo from "../assets/logo.png";
+import qrcode from "../assets/qrcode.jpg"; // static QR
 
 const SHOP_STATIC_DETAILS = {
-    address: "ផ្ទះលេខ 137 , ផ្លូវ 223, កំពង់ចាម",
-    tel: "016 438 555 / 061 91 4444"
+  address: "ផ្ទះលេខ 137 , ផ្លូវ 223, កំពង់ចាម",
+  tel: "016 438 555 / 061 91 4444",
 };
 
 function ReceiptModal({ show, onClose, order, orderId, shopName }) {
-    const receiptRef = useRef(null);
+  const receiptRef = useRef(null);
 
-    useEffect(() => {
-        const cleanup = () => {
-            const el = receiptRef.current;
-            if (el) {
-                el.style.transform = '';
-                el.style.transformOrigin = '';
-                el.style.width = '';
-            }
-            window.removeEventListener('afterprint', cleanup);
+  if (!show) return null;
+
+  const now = new Date();
+  const subtotalKHR = order.reduce(
+    (sum, item) => sum + (item.priceKHR || item.priceUSD || 0) * item.quantity,
+    0
+  );
+  const totalKHR = subtotalKHR;
+
+  const handleAndroidRawBTPrint = async () => {
+    try {
+      const canvas = document.createElement("canvas");
+      canvas.width = 384; // 58mm printer typical width in px
+      canvas.height = 600; // initial, can grow
+      const ctx = canvas.getContext("2d");
+
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#000";
+      ctx.font = "16px Arial";
+
+      let y = 20;
+
+      // Logo
+      const logoImg = new Image();
+      logoImg.src = logo;
+      await new Promise((resolve) => {
+        logoImg.onload = () => {
+          const scale = 100 / logoImg.width;
+          ctx.drawImage(logoImg, canvas.width / 2 - (logoImg.width * scale) / 2, y, logoImg.width * scale, logoImg.height * scale);
+          y += logoImg.height * scale + 10;
+          resolve(true);
         };
-        window.addEventListener('afterprint', cleanup);
-        return () => window.removeEventListener('afterprint', cleanup);
-    }, []);
+      });
 
-    if (!show) return null;
+      // Shop info
+      ctx.font = "bold 16px Arial";
+      ctx.fillText(shopName, 10, y);
+      y += 20;
+      ctx.font = "14px Arial";
+      ctx.fillText(SHOP_STATIC_DETAILS.address, 10, y);
+      y += 18;
+      ctx.fillText(`Tel: ${SHOP_STATIC_DETAILS.tel}`, 10, y);
+      y += 18;
+      ctx.fillText(`Date: ${now.toLocaleDateString("km-KH")} ${now.toLocaleTimeString("km-KH")}`, 10, y);
+      y += 18;
+      ctx.fillText(`Invoice: ${orderId}`, 10, y);
+      y += 18;
+      ctx.fillText("--------------------------------", 10, y);
+      y += 18;
 
-    const now = new Date();
-    const subtotalKHR = order.reduce(
-        (sum, item) => sum + (item.priceKHR || item.priceUSD || 0) * item.quantity,
-        0
-    );
-    const totalKHR = subtotalKHR;
+      // Items
+      order.forEach((item) => {
+        ctx.fillText(`${item.khmerName} (${item.englishName || ""})`, 10, y);
+        y += 16;
+        ctx.fillText(`Qty:${item.quantity}  ${KHR_SYMBOL}${formatKHR((item.priceKHR || item.priceUSD) * item.quantity)}`, 10, y);
+        y += 16;
+      });
 
-    const handleSmartPrint = () => {
-        const isAndroid = /Android/i.test(navigator.userAgent);
-        const el = receiptRef.current;
-        if (!el) return;
+      ctx.fillText("--------------------------------", 10, y);
+      y += 16;
+      ctx.fillText(`Subtotal: ${KHR_SYMBOL}${formatKHR(subtotalKHR)}`, 10, y);
+      y += 16;
+      ctx.fillText(`Total: ${KHR_SYMBOL}${formatKHR(totalKHR)}`, 10, y);
+      y += 20;
 
-        if (isAndroid) {
-            // -------------------
-            // RawBT ESC/POS print (simple, uses static QR image)
-            // -------------------
-            try {
-                let escpos = '';
-                escpos += '\x1B\x40'; // Initialize printer
-                escpos += '\x1B\x21\x30'; // Bold + double height
-                escpos += `${shopName}\n`;
-                escpos += '\x1B\x21\x00'; // Normal
-                escpos += `${SHOP_STATIC_DETAILS.address}\n`;
-                escpos += `Tel: ${SHOP_STATIC_DETAILS.tel}\n`;
-                escpos += `Date: ${now.toLocaleDateString('km-KH')} ${now.toLocaleTimeString('km-KH')}\n`;
-                escpos += `Invoice: ${orderId}\n`;
-                escpos += '-----------------------------\n';
-
-                order.forEach(item => {
-                    escpos += `${item.khmerName} (${item.englishName || ''})\n`;
-                    escpos += `Qty:${item.quantity}  ${KHR_SYMBOL}${formatKHR((item.priceKHR || item.priceUSD) * item.quantity)}\n`;
-                });
-
-                escpos += '-----------------------------\n';
-                escpos += `Subtotal: ${KHR_SYMBOL}${formatKHR(subtotalKHR)}\n`;
-                escpos += `Total: ${KHR_SYMBOL}${formatKHR(totalKHR)}\n`;
-                escpos += '-----------------------------\n';
-
-                // QR code image (static)
-                escpos += `<img src="${qrcode}" />\n`;
-
-                escpos += 'Thank you! Please visit again!\n';
-                escpos += '\x1D\x56\x41'; // Cut paper
-
-                const rawbtWindow = window.open('rawbt:print', '_blank');
-                rawbtWindow.document.write(escpos);
-                rawbtWindow.document.close();
-            } catch (e) {
-                alert('⚠ RawBT មិនដំឡើងនៅលើទូរស័ព្ទ! សូមដំឡើង RawBT មុន។');
-            }
-            return;
-        }
-
-        // -------------------
-        // Desktop fallback
-        // -------------------
-        handlePrint();
-    };
-
-    const handlePrint = () => {
-        const el = receiptRef.current;
-        if (!el) return;
-
-        const mmToPx = 3.7795275591;
-        const pageHeightMm = 297;
-        const pageMarginMm = 10;
-        const printableHeightPx = (pageHeightMm - pageMarginMm * 2) * mmToPx;
-        const contentHeight = el.scrollHeight;
-        const scale = Math.min(1, printableHeightPx / contentHeight);
-
-        if (scale < 1) {
-            el.style.transformOrigin = 'top left';
-            el.style.transform = `scale(${scale})`;
-            el.style.width = `${80 / scale}mm`;
-        } else {
-            el.style.width = '70mm';
-            el.style.transform = '';
-            el.style.transformOrigin = '';
-        }
-
-        const handleAfterPrint = () => {
-            try {
-                el.style.transform = '';
-                el.style.transformOrigin = '';
-                el.style.width = '';
-                if (typeof onClose === 'function') onClose();
-            } finally {
-                window.removeEventListener('afterprint', handleAfterPrint);
-            }
+      // QR code
+      const qrImg = new Image();
+      qrImg.src = qrcode;
+      await new Promise((resolve) => {
+        qrImg.onload = () => {
+          const qrSize = 100;
+          ctx.drawImage(qrImg, canvas.width / 2 - qrSize / 2, y, qrSize, qrSize);
+          y += qrSize + 20;
+          resolve(true);
         };
+      });
 
-        window.addEventListener('afterprint', handleAfterPrint);
-        window.print();
-    };
+      ctx.fillText("សូមអរគុណ! សូមអញ្ជើញមកម្តងទៀត!", 10, y);
 
-    return (
-        <div className="modal show" id="receiptModal">
-            <div className="modal-content">
-                <span className="close-button" onClick={onClose}>×</span>
+      // Convert to base64
+      const dataUrl = canvas.toDataURL("image/png");
 
-                <div className="receipt-print-area" ref={receiptRef}>
-                    <div className="receipt-logo-top">
-                        <img src={logo} className="receipt-logo" alt="logo" />
-                    </div>
+      // Send to RawBT
+      window.location.href = `rawbt://print?base64=${encodeURIComponent(dataUrl)}`;
+    } catch (err) {
+      alert("⚠ Error printing: Please make sure RawBT is installed on your device.");
+      console.error(err);
+    }
+  };
 
-                    <div className="receipt-header">
-                        <h3>{shopName}</h3>
-                        <p>{SHOP_STATIC_DETAILS.address}</p>
-                        <p>Tel: {SHOP_STATIC_DETAILS.tel}</p>
-                        <p>កាលបរិច្ឆេទ: {now.toLocaleDateString('km-KH')} {now.toLocaleTimeString('km-KH')}</p>
-                        <p>លេខវិក្កយបត្រ: {orderId}</p>
-                    </div>
+  return (
+    <div className="modal show" id="receiptModal">
+      <div className="modal-content">
+        <span className="close-button" onClick={onClose}>
+          ×
+        </span>
 
-                    <div className="receipt-divider"></div>
-
-                    <table className="receipt-items-table">
-                        <thead>
-                            <tr>
-                                <th>មុខទំនិញ</th>
-                                <th>ចំនួន</th>
-                                <th>សរុប ({KHR_SYMBOL})</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {order.map((item, i) => (
-                                <tr key={i}>
-                                    <td>{item.khmerName} ({item.englishName || ''})</td>
-                                    <td>{item.quantity}</td>
-                                    <td>{KHR_SYMBOL}{formatKHR((item.priceKHR || item.priceUSD) * item.quantity)}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-
-                    <div className="receipt-divider"></div>
-
-                    <div className="receipt-summary">
-                        <div className="receipt-summary-line">
-                            <span>សរុបរង:</span>
-                            <span>{KHR_SYMBOL}{formatKHR(subtotalKHR)}</span>
-                        </div>
-
-                        <div className="receipt-divider"></div>
-
-                        <div className="receipt-summary-line total">
-                            <span>សរុប ({KHR_SYMBOL}):</span>
-                            <span>{KHR_SYMBOL}{formatKHR(totalKHR)}</span>
-                        </div>
-                    </div>
-
-                    <div className="receipt-qr-code">
-                        <p style={{ fontSize: "0.8em", marginBottom: "5px" }}>
-                            សូមស្កេនដើម្បីទូទាត់ ឬមើលព័ត៌មានបន្ថែម
-                        </p>
-                        <img src={qrcode} alt="QR Code" />
-                    </div>
-
-                    <div className="receipt-footer">
-                        <p>សូមអរគុណ! សូមអញ្ជើញមកម្តងទៀត!</p>
-                    </div>
-                </div>
-
-                <div className="print-button-container">
-                    <button className="btn-close-receipt" onClick={onClose}>បោះបង់</button>
-                    <button className="btn-print" onClick={handleSmartPrint}>
-                        បោះពុម្ពវិក្កយបត្រ
-                    </button>
-                </div>
-            </div>
+        <div className="receipt-print-area" ref={receiptRef}>
+          {/* Preview can be same as canvas content */}
+          <p>Receipt preview here...</p>
         </div>
-    );
+
+        <div className="print-button-container">
+          <button className="btn-close-receipt" onClick={onClose}>
+            បោះបង់
+          </button>
+          <button className="btn-print" onClick={handleAndroidRawBTPrint}>
+            បោះពុម្ពវិក្កយបត្រ
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default ReceiptModal;
