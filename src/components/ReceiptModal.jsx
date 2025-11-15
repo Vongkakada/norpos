@@ -1,7 +1,7 @@
 // src/components/ReceiptModal.jsx
-import React, { useRef } from "react";
+import React from "react";
 import { KHR_SYMBOL, formatKHR } from "../utils/formatters";
-import qrcode from "../assets/qrcode.jpg"; // QR image URL
+import qrcode from "../assets/qrcode.jpg";
 import logo from "../assets/logo.png";
 
 const SHOP_STATIC_DETAILS = {
@@ -10,8 +10,6 @@ const SHOP_STATIC_DETAILS = {
 };
 
 function ReceiptModal({ show, onClose, order, orderId, shopName }) {
-  const receiptRef = useRef(null);
-
   if (!show) return null;
 
   const now = new Date();
@@ -22,152 +20,179 @@ function ReceiptModal({ show, onClose, order, orderId, shopName }) {
   const totalKHR = subtotalKHR;
 
   // ---------------------------
-  // Convert receipt to image and print via RawBT
+  // Generate small receipt image for RawBT
   // ---------------------------
+  const generateReceiptImage = async () => {
+    return new Promise(async (resolve, reject) => {
+      try {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Small size for thermal printer (58mm = ~384px, 80mm = ~576px)
+        const width = 384;
+        const padding = 12;
+        const lineHeight = 20;
+        let y = padding;
+
+        // Estimate height
+        const height = 
+          70 + // logo
+          lineHeight * 6 + // header
+          order.length * lineHeight * 2.5 + // items
+          lineHeight * 3 + // total
+          100 + // QR
+          lineHeight * 2 + // thank you
+          padding * 3;
+
+        canvas.width = width;
+        canvas.height = height;
+
+        // White background
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, width, height);
+        ctx.fillStyle = '#000';
+
+        // Load logo
+        const logoImg = await loadImage(logo);
+        const logoH = 50;
+        const logoW = 50;
+        ctx.drawImage(logoImg, (width - logoW) / 2, y, logoW, logoH);
+        y += logoH + 8;
+
+        // Shop name
+        ctx.font = 'bold 16px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText(shopName, width / 2, y);
+        y += lineHeight;
+
+        // Address
+        ctx.font = '12px Arial';
+        ctx.fillText(SHOP_STATIC_DETAILS.address, width / 2, y);
+        y += lineHeight;
+        ctx.fillText(`Tel: ${SHOP_STATIC_DETAILS.tel}`, width / 2, y);
+        y += lineHeight;
+
+        // Date & Invoice
+        ctx.font = '11px Arial';
+        ctx.fillText(
+          `${now.toLocaleDateString()} ${now.toLocaleTimeString()}`,
+          width / 2,
+          y
+        );
+        y += lineHeight;
+        ctx.fillText(`Invoice: ${orderId}`, width / 2, y);
+        y += lineHeight + 4;
+
+        // Line
+        drawLine(ctx, padding, y, width - padding, y);
+        y += 8;
+
+        // Items
+        ctx.textAlign = 'left';
+        ctx.font = '12px Arial';
+        order.forEach((item) => {
+          const name = `${item.khmerName}`;
+          ctx.fillText(name, padding, y);
+          y += lineHeight;
+          
+          const detail = `${item.englishName || ''} x${item.quantity}`;
+          ctx.fillText(detail, padding + 4, y);
+          
+          const price = `${KHR_SYMBOL}${formatKHR(
+            (item.priceKHR || item.priceUSD) * item.quantity
+          )}`;
+          ctx.textAlign = 'right';
+          ctx.fillText(price, width - padding, y);
+          ctx.textAlign = 'left';
+          y += lineHeight + 2;
+        });
+
+        y += 4;
+        drawLine(ctx, padding, y, width - padding, y);
+        y += lineHeight;
+
+        // Total
+        ctx.font = 'bold 14px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText(
+          `Total: ${KHR_SYMBOL}${formatKHR(totalKHR)}`,
+          width / 2,
+          y
+        );
+        y += lineHeight + 4;
+
+        drawLine(ctx, padding, y, width - padding, y);
+        y += 12;
+
+        // QR Code
+        const qrImg = await loadImage(qrcode);
+        const qrSize = 90;
+        ctx.drawImage(qrImg, (width - qrSize) / 2, y, qrSize, qrSize);
+        y += qrSize + 10;
+
+        // Thank you
+        ctx.font = '12px Arial';
+        ctx.fillText('សូមអរគុណ! សូមអញ្ជើញមកម្តងទៀត!', width / 2, y);
+
+        // Convert to blob
+        canvas.toBlob((blob) => {
+          if (blob) {
+            resolve(blob);
+          } else {
+            reject(new Error('Failed to create blob'));
+          }
+        }, 'image/png', 0.9);
+
+      } catch (err) {
+        reject(err);
+      }
+    });
+  };
+
+  const loadImage = (src) => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = src;
+    });
+  };
+
+  const drawLine = (ctx, x1, y1, x2, y2) => {
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  };
+
   const handlePrintRawBT = async () => {
     try {
-      // Create a temporary canvas
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
+      // Generate image blob
+      const blob = await generateReceiptImage();
       
-      // Set canvas size for thermal printer (384px width is common for 58mm printers)
-      const width = 384;
-      const padding = 16;
-      const lineHeight = 24;
-      let currentY = padding;
-
-      // Calculate required height
-      const estimatedHeight = 
-        80 + // logo
-        lineHeight * 6 + // header info
-        lineHeight * 2 + // dividers
-        order.length * lineHeight * 2 + // items
-        lineHeight * 2 + // total
-        100 + // QR code
-        lineHeight + // thank you
-        padding * 2;
-
-      canvas.width = width;
-      canvas.height = estimatedHeight;
-
-      // Fill white background
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, width, canvas.height);
-
-      // Set default text style
-      ctx.fillStyle = '#000000';
-      ctx.textAlign = 'center';
-
-      // Load and draw logo
-      const logoImg = new Image();
-      logoImg.crossOrigin = 'anonymous';
-      await new Promise((resolve) => {
-        logoImg.onload = resolve;
-        logoImg.src = logo;
-      });
-      const logoSize = 60;
-      ctx.drawImage(logoImg, (width - logoSize) / 2, currentY, logoSize, logoSize);
-      currentY += logoSize + 8;
-
-      // Shop name (bold)
-      ctx.font = 'bold 18px Arial, sans-serif';
-      ctx.fillText(shopName, width / 2, currentY);
-      currentY += lineHeight;
-
-      // Address and contact (regular)
-      ctx.font = '14px Arial, sans-serif';
-      ctx.fillText(SHOP_STATIC_DETAILS.address, width / 2, currentY);
-      currentY += lineHeight;
-      ctx.fillText(`Tel: ${SHOP_STATIC_DETAILS.tel}`, width / 2, currentY);
-      currentY += lineHeight;
-
-      // Date and Invoice
-      ctx.font = '12px Arial, sans-serif';
-      ctx.fillText(
-        `Date: ${now.toLocaleDateString()} ${now.toLocaleTimeString()}`,
-        width / 2,
-        currentY
-      );
-      currentY += lineHeight;
-      ctx.fillText(`Invoice: ${orderId}`, width / 2, currentY);
-      currentY += lineHeight;
-
-      // Divider line
-      currentY += 8;
-      ctx.beginPath();
-      ctx.moveTo(padding, currentY);
-      ctx.lineTo(width - padding, currentY);
-      ctx.strokeStyle = '#000000';
-      ctx.lineWidth = 1;
-      ctx.stroke();
-      currentY += 12;
-
-      // Order items
-      ctx.textAlign = 'left';
-      ctx.font = '13px Arial, sans-serif';
+      // Create object URL
+      const imageUrl = URL.createObjectURL(blob);
       
-      order.forEach((item) => {
-        const itemName = `${item.khmerName} (${item.englishName || ""})`;
-        ctx.fillText(itemName, padding, currentY);
-        currentY += lineHeight;
-        
-        const qtyPrice = `Qty:${item.quantity}  ${KHR_SYMBOL}${formatKHR(
-          (item.priceKHR || item.priceUSD) * item.quantity
-        )}`;
-        ctx.fillText(qtyPrice, padding + 8, currentY);
-        currentY += lineHeight;
-      });
-
-      // Bottom divider
-      currentY += 8;
-      ctx.beginPath();
-      ctx.moveTo(padding, currentY);
-      ctx.lineTo(width - padding, currentY);
-      ctx.stroke();
-      currentY += 16;
-
-      // Total
-      ctx.textAlign = 'center';
-      ctx.font = 'bold 16px Arial, sans-serif';
-      ctx.fillText(
-        `Total: ${KHR_SYMBOL}${formatKHR(totalKHR)}`,
-        width / 2,
-        currentY
-      );
-      currentY += lineHeight + 8;
-
-      // Divider
-      ctx.beginPath();
-      ctx.moveTo(padding, currentY);
-      ctx.lineTo(width - padding, currentY);
-      ctx.stroke();
-      currentY += 16;
-
-      // QR Code
-      const qrImg = new Image();
-      qrImg.crossOrigin = 'anonymous';
-      await new Promise((resolve) => {
-        qrImg.onload = resolve;
-        qrImg.src = qrcode;
-      });
-      const qrSize = 100;
-      ctx.drawImage(qrImg, (width - qrSize) / 2, currentY, qrSize, qrSize);
-      currentY += qrSize + 12;
-
-      // Thank you message
-      ctx.font = '14px Arial, sans-serif';
-      ctx.fillText('សូមអរគុណ! សូមអញ្ជើញមកម្តងទៀត!', width / 2, currentY);
-
-      // Convert canvas to base64 image
-      const imageData = canvas.toDataURL('image/png');
-      const base64Data = imageData.split(',')[1];
-
-      // Send to RawBT app with image
-      window.location.href = `rawbt://print?image=${base64Data}`;
+      // Option 1: Try direct image URL
+      window.location.href = `rawbt:${imageUrl}`;
+      
+      // Option 2: If above doesn't work, try with base64
+      // const reader = new FileReader();
+      // reader.onloadend = () => {
+      //   const base64 = reader.result.split(',')[1];
+      //   window.location.href = `rawbt:image,${base64}`;
+      // };
+      // reader.readAsDataURL(blob);
+      
+      // Clean up after delay
+      setTimeout(() => URL.revokeObjectURL(imageUrl), 5000);
       
     } catch (error) {
-      console.error('Error generating receipt image:', error);
-      alert('មានបញ្ហាក្នុងការបង្កើតវិក្កយបត្រ / Error generating receipt');
+      console.error('Error:', error);
+      alert('មានបញ្ហាក្នុងការបង្កើតវិក្កយបត្រ');
     }
   };
 
@@ -178,8 +203,7 @@ function ReceiptModal({ show, onClose, order, orderId, shopName }) {
           ×
         </span>
 
-        <div className="receipt-preview" ref={receiptRef}>
-          {/* Preview inside app */}
+        <div className="receipt-preview">
           <div className="receipt-logo">
             <img src={logo} alt="logo" style={{ width: 80 }} />
           </div>
