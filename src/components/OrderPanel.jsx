@@ -2,6 +2,7 @@
 import React from 'react';
 import OrderItemEntry from './OrderItemEntry';
 import { KHR_SYMBOL, formatKHR } from '../utils/formatters';
+import { generateReceiptImage } from '../utils/receiptGenerator';
 
 function OrderPanel({
     currentOrder,
@@ -10,10 +11,51 @@ function OrderPanel({
     onClearOrder,
     onProcessPayment,
     exchangeRate,
+    shopName = "ហាងលក់ទំនិញ", // Default shop name
 }) {
     const subtotalKHR = currentOrder.reduce((sum, item) => sum + (item.priceKHR || item.priceUSD || 0) * item.quantity, 0);
+    const totalKHR = subtotalKHR;
 
-    const totalKHR = subtotalKHR; // already in KHR, exchangeRate retained for compatibility
+    const handlePaymentWithPrint = async () => {
+        try {
+            // Show loading indicator (optional)
+            const payButton = document.querySelector('.btn-pay');
+            const originalText = payButton.textContent;
+            payButton.textContent = 'កំពុងបង្កើត...';
+            payButton.disabled = true;
+
+            // Generate receipt image
+            const blob = await generateReceiptImage({
+                shopName,
+                orderId,
+                order: currentOrder,
+                totalKHR,
+            });
+
+            // Create object URL
+            const imageUrl = URL.createObjectURL(blob);
+
+            // Send to RawBT app
+            window.location.href = `rawbt:${imageUrl}`;
+
+            // Clean up after delay
+            setTimeout(() => {
+                URL.revokeObjectURL(imageUrl);
+                payButton.textContent = originalText;
+                payButton.disabled = false;
+            }, 3000);
+
+            // Process payment (original function)
+            onProcessPayment();
+
+        } catch (error) {
+            console.error('Error generating receipt:', error);
+            alert('មានបញ្ហាក្នុងការបង្កើតវិក្កយបត្រ');
+            
+            // Still process payment even if print fails
+            onProcessPayment();
+        }
+    };
 
     return (
         <div className="order-panel">
@@ -49,7 +91,7 @@ function OrderPanel({
                 <button className="btn-clear" onClick={onClearOrder} disabled={currentOrder.length === 0}>
                     លុបការកម្ម៉ង់
                 </button>
-                <button className="btn-pay" onClick={onProcessPayment} disabled={currentOrder.length === 0}>
+                <button className="btn-pay" onClick={handlePaymentWithPrint} disabled={currentOrder.length === 0}>
                     គិតលុយ
                 </button>
             </div>
