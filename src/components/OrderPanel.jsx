@@ -1,8 +1,8 @@
 // src/components/OrderPanel.jsx
-import React from 'react';
+import React, { useState } from 'react';
 import OrderItemEntry from './OrderItemEntry';
 import { KHR_SYMBOL, formatKHR } from '../utils/formatters';
-import { generateReceiptImage } from '../utils/receiptGenerator';
+import { printViaBluetooth, printViaRawBT } from '../utils/bluetoothPrinter';
 
 function OrderPanel({
     currentOrder,
@@ -11,55 +11,90 @@ function OrderPanel({
     onClearOrder,
     onProcessPayment,
     exchangeRate,
-    shopName = "ហាងលក់ទំនិញ", // Default shop name
+    shopName = "ហាងលក់ទំនិញ",
 }) {
+    const [isPrinting, setIsPrinting] = useState(false);
+    const [printMethod, setPrintMethod] = useState('bluetooth'); // 'bluetooth' or 'rawbt'
+
     const subtotalKHR = currentOrder.reduce((sum, item) => sum + (item.priceKHR || item.priceUSD || 0) * item.quantity, 0);
     const totalKHR = subtotalKHR;
 
     const handlePaymentWithPrint = async () => {
-        try {
-            // Show loading indicator (optional)
-            const payButton = document.querySelector('.btn-pay');
-            const originalText = payButton.textContent;
-            payButton.textContent = 'កំពុងបង្កើត...';
-            payButton.disabled = true;
+        setIsPrinting(true);
 
-            // Generate receipt image
-            const blob = await generateReceiptImage({
+        try {
+            const receiptData = {
                 shopName,
                 orderId,
                 order: currentOrder,
                 totalKHR,
-            });
+            };
 
-            // Create object URL
-            const imageUrl = URL.createObjectURL(blob);
+            if (printMethod === 'bluetooth') {
+                // Web Bluetooth printing (for modern browsers)
+                await printViaBluetooth(receiptData);
+                alert('បោះពុម្ពវិក្កយបត្របានជោគជ័យ! ✅');
+            } else {
+                // RawBT app (for Android with RawBT installed)
+                printViaRawBT(receiptData);
+            }
 
-            // Send to RawBT app
-            window.location.href = `rawbt:${imageUrl}`;
-
-            // Clean up after delay
-            setTimeout(() => {
-                URL.revokeObjectURL(imageUrl);
-                payButton.textContent = originalText;
-                payButton.disabled = false;
-            }, 3000);
-
-            // Process payment (original function)
+            // Process payment after successful print
             onProcessPayment();
 
         } catch (error) {
-            console.error('Error generating receipt:', error);
-            alert('មានបញ្ហាក្នុងការបង្កើតវិក្កយបត្រ');
+            console.error('Print error:', error);
             
-            // Still process payment even if print fails
-            onProcessPayment();
+            // Show user-friendly error message
+            let errorMsg = 'មានបញ្ហាក្នុងការបោះពុម្ព!\n\n';
+            
+            if (error.message.includes('Bluetooth')) {
+                errorMsg += 'សូមពិនិត្យមើល:\n';
+                errorMsg += '- បើក Bluetooth\n';
+                errorMsg += '- Printer ភ្ជាប់រួចហើយ\n';
+                errorMsg += '- ប្រើកម្មវិធី Chrome/Edge\n\n';
+                errorMsg += 'ចង់បន្តគិតលុយដោយមិនបោះពុម្ពទេ?';
+                
+                // eslint-disable-next-line no-restricted-globals
+                if (window.confirm(errorMsg)) {
+                    onProcessPayment();
+                }
+            } else {
+                alert(errorMsg + error.message);
+            }
+        } finally {
+            setIsPrinting(false);
         }
     };
 
     return (
         <div className="order-panel">
             <h2>បញ្ជីកម្ម៉ង់បច្ចុប្បន្ន #{orderId}</h2>
+            
+            {/* Print method selector */}
+            <div className="print-method-selector" style={{ marginBottom: '10px', padding: '8px', background: '#f5f5f5', borderRadius: '4px' }}>
+                <label style={{ fontSize: '12px', marginRight: '10px' }}>
+                    <input
+                        type="radio"
+                        value="bluetooth"
+                        checked={printMethod === 'bluetooth'}
+                        onChange={(e) => setPrintMethod(e.target.value)}
+                        style={{ marginRight: '5px' }}
+                    />
+                    Bluetooth (Web)
+                </label>
+                <label style={{ fontSize: '12px' }}>
+                    <input
+                        type="radio"
+                        value="rawbt"
+                        checked={printMethod === 'rawbt'}
+                        onChange={(e) => setPrintMethod(e.target.value)}
+                        style={{ marginRight: '5px' }}
+                    />
+                    RawBT App
+                </label>
+            </div>
+
             <div className="current-order-items">
                 {currentOrder.length === 0 ? (
                     <p className="empty-cart">មិនទាន់មានទំនិញក្នុងបញ្ជីទេ។</p>
@@ -88,11 +123,19 @@ function OrderPanel({
                 </div>
             </div>
             <div className="action-buttons">
-                <button className="btn-clear" onClick={onClearOrder} disabled={currentOrder.length === 0}>
+                <button 
+                    className="btn-clear" 
+                    onClick={onClearOrder} 
+                    disabled={currentOrder.length === 0 || isPrinting}
+                >
                     លុបការកម្ម៉ង់
                 </button>
-                <button className="btn-pay" onClick={handlePaymentWithPrint} disabled={currentOrder.length === 0}>
-                    គិតលុយ
+                <button 
+                    className="btn-pay" 
+                    onClick={handlePaymentWithPrint} 
+                    disabled={currentOrder.length === 0 || isPrinting}
+                >
+                    {isPrinting ? '🖨️ កំពុងបោះពុម្ព...' : '💰 គិតលុយ'}
                 </button>
             </div>
         </div>
