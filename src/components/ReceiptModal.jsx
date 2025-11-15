@@ -1,5 +1,5 @@
 // src/components/ReceiptModal.jsx
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import { KHR_SYMBOL, formatKHR } from '../utils/formatters';
 import qrcode from '../assets/qrcode.jpg'; // Assuming you have a CSS file for styling
 import logo from '../assets/logo.png';
@@ -10,8 +10,24 @@ const SHOP_STATIC_DETAILS = {
 };
 
 function ReceiptModal({ show, onClose, order, orderId, exchangeRate, /* taxRate, */ shopName }) { // << លុប taxRate
-    if (!show) return null;
+    const receiptRef = useRef(null);
 
+    useEffect(() => {
+        const cleanup = () => {
+            const el = receiptRef.current;
+            if (el) {
+                el.style.transform = '';
+                el.style.transformOrigin = '';
+                el.style.width = '';
+            }
+            window.removeEventListener('afterprint', cleanup);
+        };
+
+        window.addEventListener('afterprint', cleanup);
+        return () => window.removeEventListener('afterprint', cleanup);
+    }, []);
+
+    if (!show) return null;
     const now = new Date();
     const subtotalKHR = order.reduce((sum, item) => sum + (item.priceKHR || item.priceUSD || 0) * item.quantity, 0);
     // const taxKHR = subtotalKHR * taxRate; // tax removed
@@ -21,7 +37,52 @@ function ReceiptModal({ show, onClose, order, orderId, exchangeRate, /* taxRate,
     const qrData = `ORDER_ID:${orderId};TOTAL_KHR:${formatKHR(totalKHR)};SHOP_NAME:${safeShopNameForQR}`;
     const qrCodeUrl = qrcode + `?data=${encodeURIComponent(qrData)}`; // Assuming you have a QR code image
 
+
     const handlePrint = () => {
+        const el = receiptRef.current;
+        if (el && typeof window !== 'undefined') {
+            // Convert mm to px (approx at 96dpi): 1mm = 3.7795275591px
+            const mmToPx = 3.7795275591;
+            const pageHeightMm = 297; // target page height in mm
+            const pageMarginMm = 10; // top margin increased to 10mm (match @page)
+            const printableHeightPx = (pageHeightMm - pageMarginMm * 2) * mmToPx;
+
+            // Measure content height
+            const contentHeight = el.scrollHeight;
+
+            // Compute scale to fit content into printable height (cap at 1)
+            const scale = Math.min(1, printableHeightPx / contentHeight);
+
+            if (scale < 1) {
+                el.style.transformOrigin = 'top left';
+                el.style.transform = `scale(${scale})`;
+                // Ensure the printed width accounts for scale so it stays within 80mm
+                el.style.width = `${80 / scale}mm`;
+            } else {
+                // Ensure width is set to 80mm when no scaling
+                el.style.width = '70mm';
+                el.style.transform = '';
+                el.style.transformOrigin = '';
+            }
+        }
+
+        // Add a one-time afterprint handler to close the modal automatically
+        const handleAfterPrint = () => {
+            try {
+                // restore styles (in case cleanup didn't run yet)
+                if (el) {
+                    el.style.transform = '';
+                    el.style.transformOrigin = '';
+                    el.style.width = '';
+                }
+                if (typeof onClose === 'function') onClose();
+            } finally {
+                window.removeEventListener('afterprint', handleAfterPrint);
+            }
+        };
+        window.addEventListener('afterprint', handleAfterPrint);
+
+        // Trigger print. afterprint listener will cleanup styles and close modal.
         window.print();
     };
 
@@ -29,7 +90,7 @@ function ReceiptModal({ show, onClose, order, orderId, exchangeRate, /* taxRate,
         <div className="modal show" id="receiptModal">
             <div className="modal-content">
                 <span className="close-button" onClick={onClose}>×</span>
-                <div className="receipt-print-area">
+                <div className="receipt-print-area" ref={receiptRef}>
                     <div className="receipt-logo-top">
                         <img src={logo} alt="Logo" className="receipt-logo" />
                     </div>

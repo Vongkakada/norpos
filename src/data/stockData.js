@@ -2,19 +2,8 @@
 // Initialize stock data structure with default quantities
 
 export const initializeStock = (menuData) => {
-    const stock = {};
-    menuData.forEach(item => {
-        const key = `${item.khmerName}_${item.category}`;
-        stock[key] = {
-            khmerName: item.khmerName,
-            englishName: item.englishName || '',
-            category: item.category,
-            priceKHR: item.priceKHR,
-            quantity: 100, // Default quantity
-            lastUpdated: new Date().toISOString(),
-        };
-    });
-    return stock;
+    // Return empty stock - users will add items manually
+    return {};
 };
 
 // Export stock data to CSV
