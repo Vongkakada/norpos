@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import OrderItemEntry from './OrderItemEntry';
 import { KHR_SYMBOL, formatKHR } from '../utils/formatters';
-import { printViaBluetooth, printViaRawBT } from '../utils/bluetoothPrinter';
+import { generateReceiptImage } from '../utils/receiptGenerator';
 
 function OrderPanel({
     currentOrder,
@@ -13,87 +13,73 @@ function OrderPanel({
     exchangeRate,
     shopName = "ហាងលក់ទំនិញ",
 }) {
-    const [isPrinting, setIsPrinting] = useState(false);
-    const [printMethod, setPrintMethod] = useState('bluetooth'); // 'bluetooth' or 'rawbt'
+    const [isGenerating, setIsGenerating] = useState(false);
+    const [receiptImage, setReceiptImage] = useState(null);
+    const [showPreview, setShowPreview] = useState(false);
 
     const subtotalKHR = currentOrder.reduce((sum, item) => sum + (item.priceKHR || item.priceUSD || 0) * item.quantity, 0);
     const totalKHR = subtotalKHR;
 
-    const handlePaymentWithPrint = async () => {
-        setIsPrinting(true);
+    const handleGenerateReceipt = async () => {
+        setIsGenerating(true);
 
         try {
-            const receiptData = {
+            // Generate receipt image
+            const dataURL = await generateReceiptImage({
                 shopName,
                 orderId,
                 order: currentOrder,
                 totalKHR,
-            };
+            });
 
-            if (printMethod === 'bluetooth') {
-                // Web Bluetooth printing (for modern browsers)
-                await printViaBluetooth(receiptData);
-                alert('បោះពុម្ពវិក្កយបត្របានជោគជ័យ! ✅');
-            } else {
-                // RawBT app (for Android with RawBT installed)
-                printViaRawBT(receiptData);
-            }
+            // Show preview
+            setReceiptImage(dataURL);
+            setShowPreview(true);
 
-            // Process payment after successful print
-            onProcessPayment();
+        } catch (error) {
+            console.error('Error generating receipt:', error);
+            alert('មានបញ្ហាក្នុងការបង្កើតវិក្កយបត្រ!\n' + error.message);
+        } finally {
+            setIsGenerating(false);
+        }
+    };
+
+    const handlePrintToRawBT = () => {
+        if (!receiptImage) return;
+
+        try {
+            // Extract base64 data (remove "data:image/png;base64," prefix)
+            const base64Data = receiptImage.split(',')[1];
+
+            // Send to RawBT app with base64 image
+            // Try different RawBT URL schemes
+            window.location.href = `rawbt:base64,${base64Data}`;
+            
+            // Alternative formats if above doesn't work:
+            // window.location.href = `rawbt://image?base64=${base64Data}`;
+            // window.location.href = `rawbt://print/image?data=${base64Data}`;
+
+            // Close preview and process payment
+            setTimeout(() => {
+                setShowPreview(false);
+                setReceiptImage(null);
+                onProcessPayment();
+            }, 500);
 
         } catch (error) {
             console.error('Print error:', error);
-            
-            // Show user-friendly error message
-            let errorMsg = 'មានបញ្ហាក្នុងការបោះពុម្ព!\n\n';
-            
-            if (error.message.includes('Bluetooth')) {
-                errorMsg += 'សូមពិនិត្យមើល:\n';
-                errorMsg += '- បើក Bluetooth\n';
-                errorMsg += '- Printer ភ្ជាប់រួចហើយ\n';
-                errorMsg += '- ប្រើកម្មវិធី Chrome/Edge\n\n';
-                errorMsg += 'ចង់បន្តគិតលុយដោយមិនបោះពុម្ពទេ?';
-                
-                // eslint-disable-next-line no-restricted-globals
-                if (window.confirm(errorMsg)) {
-                    onProcessPayment();
-                }
-            } else {
-                alert(errorMsg + error.message);
-            }
-        } finally {
-            setIsPrinting(false);
+            alert('មានបញ្ហាក្នុងការបោះពុម្ព!\n' + error.message);
         }
+    };
+
+    const handleClosePreview = () => {
+        setShowPreview(false);
+        setReceiptImage(null);
     };
 
     return (
         <div className="order-panel">
             <h2>បញ្ជីកម្ម៉ង់បច្ចុប្បន្ន #{orderId}</h2>
-            
-            {/* Print method selector */}
-            <div className="print-method-selector" style={{ marginBottom: '10px', padding: '8px', background: '#f5f5f5', borderRadius: '4px' }}>
-                <label style={{ fontSize: '12px', marginRight: '10px' }}>
-                    <input
-                        type="radio"
-                        value="bluetooth"
-                        checked={printMethod === 'bluetooth'}
-                        onChange={(e) => setPrintMethod(e.target.value)}
-                        style={{ marginRight: '5px' }}
-                    />
-                    Bluetooth (Web)
-                </label>
-                <label style={{ fontSize: '12px' }}>
-                    <input
-                        type="radio"
-                        value="rawbt"
-                        checked={printMethod === 'rawbt'}
-                        onChange={(e) => setPrintMethod(e.target.value)}
-                        style={{ marginRight: '5px' }}
-                    />
-                    RawBT App
-                </label>
-            </div>
 
             <div className="current-order-items">
                 {currentOrder.length === 0 ? (
@@ -126,18 +112,105 @@ function OrderPanel({
                 <button 
                     className="btn-clear" 
                     onClick={onClearOrder} 
-                    disabled={currentOrder.length === 0 || isPrinting}
+                    disabled={currentOrder.length === 0 || isGenerating}
                 >
                     លុបការកម្ម៉ង់
                 </button>
                 <button 
                     className="btn-pay" 
-                    onClick={handlePaymentWithPrint} 
-                    disabled={currentOrder.length === 0 || isPrinting}
+                    onClick={handleGenerateReceipt} 
+                    disabled={currentOrder.length === 0 || isGenerating}
                 >
-                    {isPrinting ? '🖨️ កំពុងបោះពុម្ព...' : '💰 គិតលុយ'}
+                    {isGenerating ? '⏳ កំពុងបង្កើត...' : '💰 គិតលុយ'}
                 </button>
             </div>
+
+            {/* Receipt Preview Modal */}
+            {showPreview && receiptImage && (
+                <div 
+                    style={{
+                        position: 'fixed',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        backgroundColor: 'rgba(0,0,0,0.8)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        zIndex: 9999,
+                        padding: '20px',
+                    }}
+                >
+                    <div 
+                        style={{
+                            backgroundColor: 'white',
+                            borderRadius: '8px',
+                            padding: '20px',
+                            maxWidth: '600px',
+                            maxHeight: '90vh',
+                            overflow: 'auto',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                        }}
+                    >
+                        <h3 style={{ marginBottom: '16px', color: '#333' }}>
+                            👀 មើលវិក្កយបត្រ
+                        </h3>
+                        
+                        <img 
+                            src={receiptImage} 
+                            alt="Receipt Preview" 
+                            style={{ 
+                                maxWidth: '100%', 
+                                height: 'auto',
+                                border: '2px solid #ddd',
+                                borderRadius: '4px',
+                                marginBottom: '20px',
+                            }} 
+                        />
+
+                        <div style={{ display: 'flex', gap: '12px', width: '100%' }}>
+                            <button
+                                onClick={handleClosePreview}
+                                style={{
+                                    flex: 1,
+                                    padding: '12px 24px',
+                                    fontSize: '16px',
+                                    backgroundColor: '#6c757d',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '4px',
+                                    cursor: 'pointer',
+                                }}
+                            >
+                                ❌ បោះបង់
+                            </button>
+                            <button
+                                onClick={handlePrintToRawBT}
+                                style={{
+                                    flex: 1,
+                                    padding: '12px 24px',
+                                    fontSize: '16px',
+                                    backgroundColor: '#28a745',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '4px',
+                                    cursor: 'pointer',
+                                }}
+                            >
+                                🖨️ បោះពុម្ព
+                            </button>
+                        </div>
+
+                        <p style={{ marginTop: '12px', fontSize: '12px', color: '#666', textAlign: 'center' }}>
+                            * សូមពិនិត្យមើលវិក្កយបត្រមុននឹងបោះពុម្ព
+                        </p>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
