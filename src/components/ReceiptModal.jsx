@@ -1,7 +1,7 @@
 // src/components/ReceiptModal.jsx
 import React, { useRef, useEffect } from 'react';
 import { KHR_SYMBOL, formatKHR } from '../utils/formatters';
-import qrcode from '../assets/qrcode.jpg';
+import qrcode from '../assets/qrcode.jpg'; // static QR image
 import logo from '../assets/logo.png';
 
 const SHOP_STATIC_DETAILS = {
@@ -9,7 +9,7 @@ const SHOP_STATIC_DETAILS = {
     tel: "016 438 555 / 061 91 4444"
 };
 
-function ReceiptModal({ show, onClose, order, orderId, exchangeRate, shopName }) {
+function ReceiptModal({ show, onClose, order, orderId, shopName }) {
     const receiptRef = useRef(null);
 
     useEffect(() => {
@@ -35,68 +35,84 @@ function ReceiptModal({ show, onClose, order, orderId, exchangeRate, shopName })
     );
     const totalKHR = subtotalKHR;
 
-    const safeShopNameForQR = shopName.replace(/\s+/g, '_');
-    const qrData = `ORDER_ID:${orderId};TOTAL_KHR:${formatKHR(totalKHR)};SHOP_NAME:${safeShopNameForQR}`;
-    const qrCodeUrl = qrcode + `?data=${encodeURIComponent(qrData)}`;
-
-    // ---------------------------
-    // Smart Print (Android + PC)
-    // ---------------------------
     const handleSmartPrint = () => {
         const isAndroid = /Android/i.test(navigator.userAgent);
         const el = receiptRef.current;
+        if (!el) return;
 
         if (isAndroid) {
-            // --- Android → RawBT ---
+            // -------------------
+            // RawBT ESC/POS print (simple, uses static QR image)
+            // -------------------
             try {
-                const rawbtWindow = window.open("rawbt:print", "_blank");
-                rawbtWindow.document.write(`
-                    <html>
-                        <body>${el.innerHTML}</body>
-                    </html>
-                `);
+                let escpos = '';
+                escpos += '\x1B\x40'; // Initialize printer
+                escpos += '\x1B\x21\x30'; // Bold + double height
+                escpos += `${shopName}\n`;
+                escpos += '\x1B\x21\x00'; // Normal
+                escpos += `${SHOP_STATIC_DETAILS.address}\n`;
+                escpos += `Tel: ${SHOP_STATIC_DETAILS.tel}\n`;
+                escpos += `Date: ${now.toLocaleDateString('km-KH')} ${now.toLocaleTimeString('km-KH')}\n`;
+                escpos += `Invoice: ${orderId}\n`;
+                escpos += '-----------------------------\n';
+
+                order.forEach(item => {
+                    escpos += `${item.khmerName} (${item.englishName || ''})\n`;
+                    escpos += `Qty:${item.quantity}  ${KHR_SYMBOL}${formatKHR((item.priceKHR || item.priceUSD) * item.quantity)}\n`;
+                });
+
+                escpos += '-----------------------------\n';
+                escpos += `Subtotal: ${KHR_SYMBOL}${formatKHR(subtotalKHR)}\n`;
+                escpos += `Total: ${KHR_SYMBOL}${formatKHR(totalKHR)}\n`;
+                escpos += '-----------------------------\n';
+
+                // QR code image (static)
+                escpos += `<img src="${qrcode}" />\n`;
+
+                escpos += 'Thank you! Please visit again!\n';
+                escpos += '\x1D\x56\x41'; // Cut paper
+
+                const rawbtWindow = window.open('rawbt:print', '_blank');
+                rawbtWindow.document.write(escpos);
                 rawbtWindow.document.close();
             } catch (e) {
-                alert("⚠ RawBT មិនទាន់ដំឡើងនៅលើទូរស័ព្ទ! សូមដំឡើង RawBT មុន។");
+                alert('⚠ RawBT មិនដំឡើងនៅលើទូរស័ព្ទ! សូមដំឡើង RawBT មុន។');
             }
             return;
         }
 
-        // --- PC / Other → Normal Print ---
+        // -------------------
+        // Desktop fallback
+        // -------------------
         handlePrint();
     };
 
-    // ---------------------------
-    // PC Print (window.print)
-    // ---------------------------
     const handlePrint = () => {
         const el = receiptRef.current;
-        if (el) {
-            const mmToPx = 3.7795275591;
-            const pageHeightMm = 297;
-            const pageMarginMm = 10;
-            const printableHeightPx = (pageHeightMm - pageMarginMm * 2) * mmToPx;
-            const contentHeight = el.scrollHeight;
-            const scale = Math.min(1, printableHeightPx / contentHeight);
+        if (!el) return;
 
-            if (scale < 1) {
-                el.style.transformOrigin = 'top left';
-                el.style.transform = `scale(${scale})`;
-                el.style.width = `${80 / scale}mm`;
-            } else {
-                el.style.width = '70mm';
-                el.style.transform = '';
-                el.style.transformOrigin = '';
-            }
+        const mmToPx = 3.7795275591;
+        const pageHeightMm = 297;
+        const pageMarginMm = 10;
+        const printableHeightPx = (pageHeightMm - pageMarginMm * 2) * mmToPx;
+        const contentHeight = el.scrollHeight;
+        const scale = Math.min(1, printableHeightPx / contentHeight);
+
+        if (scale < 1) {
+            el.style.transformOrigin = 'top left';
+            el.style.transform = `scale(${scale})`;
+            el.style.width = `${80 / scale}mm`;
+        } else {
+            el.style.width = '70mm';
+            el.style.transform = '';
+            el.style.transformOrigin = '';
         }
 
         const handleAfterPrint = () => {
             try {
-                if (el) {
-                    el.style.transform = '';
-                    el.style.transformOrigin = '';
-                    el.style.width = '';
-                }
+                el.style.transform = '';
+                el.style.transformOrigin = '';
+                el.style.width = '';
                 if (typeof onClose === 'function') onClose();
             } finally {
                 window.removeEventListener('afterprint', handleAfterPrint);
@@ -166,7 +182,7 @@ function ReceiptModal({ show, onClose, order, orderId, exchangeRate, shopName })
                         <p style={{ fontSize: "0.8em", marginBottom: "5px" }}>
                             សូមស្កេនដើម្បីទូទាត់ ឬមើលព័ត៌មានបន្ថែម
                         </p>
-                        <img src={qrCodeUrl} alt="QR" />
+                        <img src={qrcode} alt="QR Code" />
                     </div>
 
                     <div className="receipt-footer">

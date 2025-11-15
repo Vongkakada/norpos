@@ -911,7 +911,7 @@ body {
 /* Print styles for receipt: force 80mm x 297mm and hide UI chrome */
 @page {
     size: 80mm 297mm;
-    margin: 2mm 6mm 6mm 6mm; /* larger top margin */
+    margin: 0;
 }
 
 @media print {
