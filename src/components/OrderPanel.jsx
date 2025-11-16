@@ -2,7 +2,10 @@
 import React, { useState } from 'react';
 import OrderItemEntry from './OrderItemEntry';
 import { KHR_SYMBOL, formatKHR } from '../utils/formatters';
-import { generateReceiptImage } from '../utils/receiptGenerator';
+import { 
+  printViaRawBT,
+  generatePlainTextReceipt
+} from '../utils/escposPrinter';
 
 function OrderPanel({
     currentOrder,
@@ -13,68 +16,60 @@ function OrderPanel({
     exchangeRate,
     shopName = "ហាងលក់ទំនិញ",
 }) {
-    const [isGenerating, setIsGenerating] = useState(false);
-    const [receiptImage, setReceiptImage] = useState(null);
+    const [isPrinting, setIsPrinting] = useState(false);
     const [showPreview, setShowPreview] = useState(false);
+    const [receiptPreview, setReceiptPreview] = useState('');
 
-    const subtotalKHR = currentOrder.reduce((sum, item) => sum + (item.priceKHR || item.priceUSD || 0) * item.quantity, 0);
+    const subtotalKHR = currentOrder.reduce(
+        (sum, item) => sum + (item.priceKHR || item.priceUSD || 0) * item.quantity, 
+        0
+    );
     const totalKHR = subtotalKHR;
 
-    const handleGenerateReceipt = async () => {
-        setIsGenerating(true);
+    const handleGeneratePreview = () => {
+        const receiptData = {
+            shopName,
+            orderId,
+            order: currentOrder,
+            totalKHR,
+        };
+        
+        // Generate plain text preview
+        const preview = generatePlainTextReceipt(receiptData);
+        setReceiptPreview(preview);
+        setShowPreview(true);
+    };
+
+    const handlePrint = () => {
+        setIsPrinting(true);
 
         try {
-            // Generate receipt image
-            const dataURL = await generateReceiptImage({
+            const receiptData = {
                 shopName,
                 orderId,
                 order: currentOrder,
                 totalKHR,
-            });
+            };
 
-            // Show preview
-            setReceiptImage(dataURL);
-            setShowPreview(true);
-
-        } catch (error) {
-            console.error('Error generating receipt:', error);
-            alert('មានបញ្ហាក្នុងការបង្កើតវិក្កយបត្រ!\n' + error.message);
-        } finally {
-            setIsGenerating(false);
-        }
-    };
-
-    const handlePrintToRawBT = () => {
-        if (!receiptImage) return;
-
-        try {
-            // Extract base64 data (remove "data:image/png;base64," prefix)
-            const base64Data = receiptImage.split(',')[1];
-
-            // Send to RawBT app with base64 image
-            // Try different RawBT URL schemes
-            window.location.href = `rawbt:base64,${base64Data}`;
+            // Print via RawBT App
+            printViaRawBT(receiptData);
             
-            // Alternative formats if above doesn't work:
-            // window.location.href = `rawbt://image?base64=${base64Data}`;
-            // window.location.href = `rawbt://print/image?data=${base64Data}`;
-
             // Close preview and process payment
             setTimeout(() => {
                 setShowPreview(false);
-                setReceiptImage(null);
                 onProcessPayment();
-            }, 500);
+                setIsPrinting(false);
+            }, 1000);
 
         } catch (error) {
             console.error('Print error:', error);
-            alert('មានបញ្ហាក្នុងការបោះពុម្ព!\n' + error.message);
+            alert('❌ មានបញ្ហាក្នុងការបោះពុម្ព!\n' + error.message);
+            setIsPrinting(false);
         }
     };
 
     const handleClosePreview = () => {
         setShowPreview(false);
-        setReceiptImage(null);
     };
 
     return (
@@ -94,6 +89,7 @@ function OrderPanel({
                     ))
                 )}
             </div>
+
             <div className="order-summary">
                 <div className="summary-line">
                     <span>សរុបរង (Subtotal):</span>
@@ -108,105 +104,176 @@ function OrderPanel({
                     </span>
                 </div>
             </div>
+
             <div className="action-buttons">
                 <button 
                     className="btn-clear" 
                     onClick={onClearOrder} 
-                    disabled={currentOrder.length === 0 || isGenerating}
+                    disabled={currentOrder.length === 0 || isPrinting}
                 >
                     លុបការកម្ម៉ង់
                 </button>
                 <button 
                     className="btn-pay" 
-                    onClick={handleGenerateReceipt} 
-                    disabled={currentOrder.length === 0 || isGenerating}
+                    onClick={handleGeneratePreview} 
+                    disabled={currentOrder.length === 0 || isPrinting}
                 >
-                    {isGenerating ? '⏳ កំពុងបង្កើត...' : '💰 គិតលុយ'}
+                    {isPrinting ? '🖨️ កំពុងបោះពុម្ព...' : '💰 គិតលុយ'}
                 </button>
             </div>
 
             {/* Receipt Preview Modal */}
-            {showPreview && receiptImage && (
-                <div 
-                    style={{
-                        position: 'fixed',
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        backgroundColor: 'rgba(0,0,0,0.8)',
+            {showPreview && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: 'rgba(0,0,0,0.9)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 9999,
+                    padding: '20px',
+                }}>
+                    <div style={{
+                        backgroundColor: 'white',
+                        borderRadius: '12px',
+                        padding: '24px',
+                        maxWidth: '450px',
+                        width: '100%',
+                        maxHeight: '90vh',
                         display: 'flex',
                         flexDirection: 'column',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        zIndex: 9999,
-                        padding: '20px',
-                    }}
-                >
-                    <div 
-                        style={{
-                            backgroundColor: 'white',
-                            borderRadius: '8px',
-                            padding: '20px',
-                            maxWidth: '600px',
-                            maxHeight: '90vh',
-                            overflow: 'auto',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                        }}
-                    >
-                        <h3 style={{ marginBottom: '16px', color: '#333' }}>
-                            👀 មើលវិក្កយបត្រ
-                        </h3>
-                        
-                        <img 
-                            src={receiptImage} 
-                            alt="Receipt Preview" 
-                            style={{ 
-                                maxWidth: '100%', 
-                                height: 'auto',
-                                border: '2px solid #ddd',
-                                borderRadius: '4px',
-                                marginBottom: '20px',
-                            }} 
-                        />
+                        boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
+                    }}>
+                        <div style={{ 
+                            marginBottom: '16px', 
+                            textAlign: 'center'
+                        }}>
+                            <h3 style={{ 
+                                color: '#333',
+                                fontSize: '20px',
+                                marginBottom: '8px'
+                            }}>
+                                👀 មើលវិក្កយបត្រ
+                            </h3>
+                            <div style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                background: '#e3f2fd',
+                                padding: '6px 12px',
+                                borderRadius: '20px',
+                                fontSize: '12px',
+                                color: '#1976d2'
+                            }}>
+                                <span style={{
+                                    background: '#4caf50',
+                                    color: 'white',
+                                    padding: '2px 8px',
+                                    borderRadius: '10px',
+                                    fontSize: '11px',
+                                    fontWeight: 'bold'
+                                }}>
+                                    ESC/POS
+                                </span>
+                                <span style={{ fontWeight: '500' }}>
+                                    📱 RawBT App
+                                </span>
+                            </div>
+                        </div>
 
-                        <div style={{ display: 'flex', gap: '12px', width: '100%' }}>
+                        {/* Preview Content */}
+                        <div style={{
+                            flex: 1,
+                            overflow: 'auto',
+                            background: '#1e1e1e',
+                            color: '#00ff00',
+                            padding: '16px',
+                            borderRadius: '8px',
+                            fontFamily: 'Courier New, monospace',
+                            fontSize: '12px',
+                            lineHeight: '1.4',
+                            whiteSpace: 'pre-wrap',
+                            marginBottom: '16px',
+                            border: '2px solid #333'
+                        }}>
+                            {receiptPreview}
+                        </div>
+
+                        {/* Info Box */}
+                        <div style={{
+                            background: '#e8f5e9',
+                            padding: '12px',
+                            borderRadius: '6px',
+                            marginBottom: '16px',
+                            fontSize: '12px',
+                            lineHeight: '1.6',
+                            color: '#2e7d32'
+                        }}>
+                            <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>
+                                ✨ អក្សរច្បាស់ល្អ មិនរាល!
+                            </div>
+                            <div style={{ fontSize: '11px', color: '#388e3c' }}>
+                                • ប្រើ ESC/POS commands<br/>
+                                • Print លឿន និងច្បាស់<br/>
+                                • ស្របតាម thermal printer
+                            </div>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div style={{ display: 'flex', gap: '12px' }}>
                             <button
                                 onClick={handleClosePreview}
+                                disabled={isPrinting}
                                 style={{
                                     flex: 1,
-                                    padding: '12px 24px',
+                                    padding: '14px 20px',
                                     fontSize: '16px',
-                                    backgroundColor: '#6c757d',
+                                    fontWeight: 'bold',
+                                    backgroundColor: isPrinting ? '#ccc' : '#6c757d',
                                     color: 'white',
                                     border: 'none',
-                                    borderRadius: '4px',
-                                    cursor: 'pointer',
+                                    borderRadius: '8px',
+                                    cursor: isPrinting ? 'not-allowed' : 'pointer',
+                                    transition: 'background-color 0.2s'
                                 }}
+                                onMouseOver={(e) => !isPrinting && (e.target.style.backgroundColor = '#5a6268')}
+                                onMouseOut={(e) => !isPrinting && (e.target.style.backgroundColor = '#6c757d')}
                             >
                                 ❌ បោះបង់
                             </button>
                             <button
-                                onClick={handlePrintToRawBT}
+                                onClick={handlePrint}
+                                disabled={isPrinting}
                                 style={{
                                     flex: 1,
-                                    padding: '12px 24px',
+                                    padding: '14px 20px',
                                     fontSize: '16px',
-                                    backgroundColor: '#28a745',
+                                    fontWeight: 'bold',
+                                    backgroundColor: isPrinting ? '#ccc' : '#28a745',
                                     color: 'white',
                                     border: 'none',
-                                    borderRadius: '4px',
-                                    cursor: 'pointer',
+                                    borderRadius: '8px',
+                                    cursor: isPrinting ? 'not-allowed' : 'pointer',
+                                    transition: 'background-color 0.2s'
                                 }}
+                                onMouseOver={(e) => !isPrinting && (e.target.style.backgroundColor = '#218838')}
+                                onMouseOut={(e) => !isPrinting && (e.target.style.backgroundColor = '#28a745')}
                             >
-                                🖨️ បោះពុម្ព
+                                {isPrinting ? '⏳ កំពុងផ្ញើ...' : '🖨️ បោះពុម្ព'}
                             </button>
                         </div>
 
-                        <p style={{ marginTop: '12px', fontSize: '12px', color: '#666', textAlign: 'center' }}>
-                            * សូមពិនិត្យមើលវិក្កយបត្រមុននឹងបោះពុម្ព
+                        <p style={{ 
+                            marginTop: '12px', 
+                            fontSize: '11px', 
+                            color: '#999', 
+                            textAlign: 'center'
+                        }}>
+                            💡 នឹងបើក RawBT app ស្វ័យប្រវត្តិ
                         </p>
                     </div>
                 </div>
